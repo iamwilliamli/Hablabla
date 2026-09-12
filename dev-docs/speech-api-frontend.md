@@ -115,13 +115,14 @@ const media = await navigator.mediaDevices.getUserMedia({
 });
 ```
 
-Load the supplied worklet:
+Copy or serve the supplied
+[`hablabla-pcm16-worklet.js`](../apps/speech-gateway/examples/hablabla-pcm16-worklet.js),
+then load it:
 
 ```js
 await audioContext.audioWorklet.addModule("/hablabla-pcm16-worklet.js");
 const source = audioContext.createMediaStreamSource(media);
 const worklet = new AudioWorkletNode(audioContext, "hablabla-pcm16");
-source.connect(worklet);
 // Do not connect the microphone node to audioContext.destination.
 ```
 
@@ -140,12 +141,17 @@ const socket = new WebSocket(websocketUrl);
 socket.binaryType = "arraybuffer";
 
 let sequence = 0;
+let modelReady = false;
 socket.addEventListener("open", () => {
   socket.send(JSON.stringify({ type: "start" }));
 });
 
 worklet.port.onmessage = ({ data: pcm }) => {
-  if (socket.readyState !== WebSocket.OPEN) return;
+  if (!modelReady || socket.readyState !== WebSocket.OPEN) return;
+  if (pcm?.type === "flushed") {
+    socket.send(JSON.stringify({ type: "finish" }));
+    return;
+  }
   const samples = new Int16Array(pcm);
   const packet = new ArrayBuffer(8 + samples.byteLength);
   const view = new DataView(packet);
@@ -157,6 +163,10 @@ worklet.port.onmessage = ({ data: pcm }) => {
 
 socket.addEventListener("message", ({ data }) => {
   const event = JSON.parse(data);
+  if (event.type === "ready" && !modelReady) {
+    modelReady = true;
+    source.connect(worklet); // Start capture only after the model can consume it.
+  }
   if (event.type === "transcript") {
     // Replace the previous state. volatileText is allowed to change.
     renderTranscript(event.confirmedText, event.volatileText, event.isFinal);
@@ -189,13 +199,15 @@ The included worklet emits 1,600 samples per packet, or 100 ms. When recording
 ends, stop all media tracks, disconnect the nodes, and flush the model:
 
 ```js
-socket.send(JSON.stringify({ type: "finish" }));
 media.getTracks().forEach((track) => track.stop());
 source.disconnect();
+worklet.port.postMessage({ type: "flush" });
 worklet.disconnect();
 ```
 
-Wait for `isFinal: true`; a WebSocket close by itself is not a final transcript.
+The worklet sends the final partial PCM packet, acknowledges `flushed`, and the
+message handler above then sends `finish`. Wait for `isFinal: true`; a WebSocket
+close by itself is not a final transcript.
 
 ## MOSS complete-file upload
 
