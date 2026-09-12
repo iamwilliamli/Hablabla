@@ -45,6 +45,15 @@ final class CaptureWindowController: NSWindowController, NSWindowDelegate {
     private var displayButton: NSButton!
     private var captureButton: NSButton!
     private var clearButton: NSButton!
+    private var shareButton: NSButton!
+    private var sharingRow: NSStackView!
+    private var dashboardRequest: DashboardSnapshotRequest?
+    private var onShare: (([String: Any], @escaping (Bool) -> Void) -> Void)?
+    private var onDecline: (() -> Void)?
+    private var requestTimeout: DispatchWorkItem?
+    private var sharing = false
+    private var snapshot: CGImage?
+    private var snapshotMetadata: [String: Any]?
     private var filter: SCContentFilter?
     private var observer: CapturePickerObserver?
     private var selectionID: UUID?
@@ -54,10 +63,10 @@ final class CaptureWindowController: NSWindowController, NSWindowDelegate {
     private var sourceDescription = ""
 
     init() {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 690),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Hablabla Companion — Capture"
-        window.minSize = NSSize(width: 700, height: 620)
+        window.minSize = NSSize(width: 700, height: 720)
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
@@ -71,6 +80,59 @@ final class CaptureWindowController: NSWindowController, NSWindowDelegate {
         showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func beginDashboardRequest(_ request: DashboardSnapshotRequest,
+                               share: @escaping ([String: Any], @escaping (Bool) -> Void) -> Void,
+                               decline: @escaping () -> Void) {
+        cancelDashboardRequest()
+        reset() // Never reuse a standalone preview for a new dashboard request.
+        dashboardRequest = request
+        onShare = share; onDecline = decline
+        sharingRow.isHidden = false
+        status.stringValue = "Your paired browser requested a snapshot. Choose a source, capture it, then review the preview before sharing."
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, self.dashboardRequest?.id == request.id else { return }
+            self.cancelDashboardRequest()
+            self.status.stringValue = "Dashboard request expired. No pending image was shared."
+        }
+        requestTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, request.expiresAt.timeIntervalSinceNow), execute: timeout)
+        updateButtons()
+        present()
+    }
+
+    func cancelDashboardRequest() {
+        let hadRequest = dashboardRequest != nil
+        dashboardRequest = nil; onShare = nil; onDecline = nil; sharing = false
+        requestTimeout?.cancel(); requestTimeout = nil
+        sharingRow.isHidden = true
+        if hadRequest { reset(); status.stringValue = "Dashboard request ended. The local preview was cleared." }
+    }
+
+    @objc private func declineDashboardRequest() {
+        let decline = onDecline
+        cancelDashboardRequest()
+        decline?()
+        status.stringValue = "Declined. No image was shared with the dashboard."
+    }
+
+    @objc private func shareWithDashboard() {
+        guard let request = dashboardRequest, request.expiresAt > Date(), !sharing,
+              let snapshot, let metadata = snapshotMetadata, let onShare else { return }
+        let bitmap = NSBitmapImageRep(cgImage: snapshot)
+        guard let jpeg = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.7]),
+              jpeg.count <= 2 * 1024 * 1024 else {
+            status.stringValue = "This image is too large to share. Choose a smaller window or decline."; return
+        }
+        sharing = true
+        status.stringValue = "Sharing this preview with your paired browser on this Mac…"
+        updateButtons()
+        onShare(["jpeg": jpeg.base64EncodedString(), "metadata": metadata]) { [weak self] succeeded in
+            guard let self, self.dashboardRequest?.id == request.id else { return }
+            self.cancelDashboardRequest()
+            self.status.stringValue = succeeded ? "Shared with your local dashboard. The image expires there in one minute." : "Sharing was not confirmed. The local preview was cleared."
+        }
     }
 
     private func label(_ text: String, size: CGFloat = 13, weight: NSFont.Weight = .regular) -> NSTextField {
@@ -92,6 +154,11 @@ final class CaptureWindowController: NSWindowController, NSWindowDelegate {
         captureButton = button("Capture Once", action: #selector(captureOnce))
         clearButton = button("Clear", action: #selector(clear))
         clearButton.setAccessibilityHelp("Discard the selected source and snapshot; ignore any pending result.")
+        shareButton = button("Share with Dashboard", action: #selector(shareWithDashboard))
+        let declineButton = button("Decline Request", action: #selector(declineDashboardRequest))
+        sharingRow = NSStackView(views: [shareButton, declineButton])
+        sharingRow.spacing = 12
+        sharingRow.isHidden = true
         let buttons = NSStackView(views: [windowButton, displayButton, captureButton, clearButton])
         buttons.orientation = .horizontal
         buttons.spacing = 10
@@ -124,13 +191,13 @@ final class CaptureWindowController: NSWindowController, NSWindowDelegate {
         ])
         let title = label("One moment from your Mac", size: 25, weight: .bold)
         let intro = label("Select a window or display using the macOS picker, then capture one still image. You choose a source again for each snapshot.")
-        let privacy = label("Kept in this window only. No file is saved and nothing is uploaded. Clear or close the window to discard the image.", size: 12)
+        let privacy = label("Kept in memory. A dashboard request reveals nothing until you click Share with Dashboard. That sends this preview only to your paired browser at 127.0.0.1:3100 on this Mac, for one minute. No model receives it. Clear or close to discard.", size: 12)
         privacy.textColor = .secondaryLabelColor
-        let stack = NSStackView(views: [title, intro, buttons, source, status, well, metadata, privacy])
+        let stack = NSStackView(views: [title, intro, buttons, source, status, sharingRow, well, metadata, privacy])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.distribution = .fill
-        stack.spacing = 16
+        stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -148,18 +215,19 @@ final class CaptureWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func updateButtons() {
-        let busy = picking || captureID != nil
+        let busy = picking || captureID != nil || sharing
         windowButton.isEnabled = !busy
         displayButton.isEnabled = !busy
         captureButton.isEnabled = filter != nil && !busy
         clearButton.isEnabled = busy || filter != nil || preview.image != nil
+        shareButton.isEnabled = dashboardRequest != nil && snapshot != nil && !busy
     }
 
     @objc private func chooseWindow() { choose(.window) }
     @objc private func chooseDisplay() { choose(.display) }
 
     private func choose(_ style: SCShareableContentStyle) {
-        guard !picking, captureID == nil else { return }
+        guard !picking, captureID == nil, !sharing else { return }
         reset()
         let id = UUID()
         selectionID = id
@@ -241,6 +309,12 @@ final class CaptureWindowController: NSWindowController, NSWindowDelegate {
         let id = UUID()
         let requestedAt = Date()
         let target = sourceDescription
+        var targetId = "selection:\(selectionID?.uuidString ?? UUID().uuidString)"
+        if #available(macOS 15.2, *) {
+            if filter.style == .window, let selected = filter.includedWindows.first { targetId = "window:\(selected.windowID)" }
+            if filter.style == .display, let selected = filter.includedDisplays.first { targetId = "display:\(selected.displayID)" }
+        }
+        let targetKind = filter.style == .window ? "window" : "display"
         captureID = id
         status.stringValue = "Capturing one image… Clear discards any pending result."
         updateButtons()
@@ -277,15 +351,20 @@ final class CaptureWindowController: NSWindowController, NSWindowDelegate {
                     return
                 }
                 self.preview.image = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+                self.snapshot = image
                 self.placeholder.isHidden = true
                 self.source.stringValue = target
                 let receivedAt = Date()
+                let iso = ISO8601DateFormatter()
+                iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                self.snapshotMetadata = ["target": target, "targetId": targetId, "kind": targetKind,
+                    "width": image.width, "height": image.height, "scale": scale, "capturedAt": iso.string(from: receivedAt)]
                 let format = DateFormatter()
                 format.dateStyle = .medium
                 format.timeStyle = .medium
                 self.metadata.stringValue = "\(image.width) × \(image.height) pixels · Still image\nRequested \(format.string(from: requestedAt)) · Received \(format.string(from: receivedAt))"
                 self.preview.setAccessibilityLabel("Snapshot of \(target), \(image.width) by \(image.height) pixels, received \(format.string(from: receivedAt))")
-                self.status.stringValue = "Captured locally. This image does not update. Choose a source for another snapshot."
+                self.status.stringValue = self.dashboardRequest == nil ? "Captured locally. This image does not update. Choose a source for another snapshot." : "Review this preview. Share with Dashboard sends exactly this still image to your paired browser; Decline Request discards it."
                 self.updateButtons()
             }
         }
@@ -323,6 +402,8 @@ final class CaptureWindowController: NSWindowController, NSWindowDelegate {
         timeout = nil
         releaseSelection()
         preview.image = nil
+        snapshot = nil
+        snapshotMetadata = nil
         preview.setAccessibilityLabel("Snapshot preview, no image captured")
         placeholder.isHidden = false
         sourceDescription = ""
@@ -332,11 +413,13 @@ final class CaptureWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func clear() {
+        if dashboardRequest != nil { declineDashboardRequest(); return }
         reset()
         status.stringValue = "Cleared. Any pending snapshot will be discarded."
     }
 
     func windowWillClose(_ notification: Notification) {
+        if dashboardRequest != nil { declineDashboardRequest() }
         reset()
         status.stringValue = "Choose one window or display to begin."
     }

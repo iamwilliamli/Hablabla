@@ -27,5 +27,5 @@ try {
   try { await rename(copy, installedApp); }
   catch (error) { if (exists) await rename(backup, installedApp); throw error; }
   console.log(`Installed ${installedApp}`);
-  console.log("Run npm run companion -- app to show the background helper. Pairing and approval still use Terminal.");
+  console.log("Run npm run companion -- app, then Local Dashboard for approved snapshots. Document-opening approvals still use Terminal.");
 } finally { await rm(staging, { recursive: true, force: true }); }

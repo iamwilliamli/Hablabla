@@ -16,7 +16,7 @@ import { WebGPUAgent } from "@/lib/local-ai/webgpu-agent";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [agents] = useState(() => ({ default: new WebGPUAgent() }));
+  if (pathname === "/devices") return <>{children}</>;
   if (pathname === "/reference" || pathname === "/voice") {
     return (
       <CopilotKitProvider runtimeUrl="/api/copilotkit">
@@ -24,6 +24,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       </CopilotKitProvider>
     );
   }
+  return <MeetingProvider>{children}</MeetingProvider>;
+}
+
+function MeetingProvider({ children }: { children: React.ReactNode }) {
+  const [agents] = useState(() => ({ default: new WebGPUAgent() }));
   return (
     <CopilotKitProvider selfManagedAgents={agents} enableInspector={false}>
       {children}

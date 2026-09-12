@@ -2,9 +2,15 @@
 
 A Terminal-launched macOS companion for the first device-control prototype. It pairs with a relay, advertises registered documents, receives a typed `open_resource` command, asks for approval **on the Mac**, opens the document through Launch Services, and reports the result.
 
-The user assigned this component on September 12, 2026. Its implementation lives entirely in `apps/companion/`, apart from root workspace/scripts and handoff documentation. The meeting UI and deferred local-model verification are unchanged.
+The user assigned this component on September 12, 2026. Its native implementation lives in `apps/companion/`. The same-Mac snapshot dashboard now lives at `apps/web/src/app/devices/`, with a separate local broker at `/api/devices`. The meeting UI and deferred local-model verification are unchanged.
 
-## Run the local demo
+## Share a snapshot with the local dashboard
+
+The native app now pairs directly with the browser on this Mac. Start `npm run dev:web`, open **http://127.0.0.1:3100/devices**, and click **Local Dashboard…** in the companion Setup window. Create a code in the browser and paste it into the app. Each snapshot requires source selection, capture, preview, and **Share with Dashboard** on the Mac. Images expire after one minute. See [LOCAL_DASHBOARD.md](LOCAL_DASHBOARD.md) for the complete walkthrough, contract, limits, and tests.
+
+The Terminal document-opening flow below remains separate. No live meeting model is loaded by `/devices`.
+
+## Run the Terminal document demo
 
 Requirements: macOS, Node.js 22+, and Xcode Command Line Tools (`xcrun swiftc`). Run the commands below from the repository root. No model key or cloud account is needed.
 
@@ -70,9 +76,7 @@ npm run companion -- app-info
 ```
 
 Opening the app shows its **Setup** window and a small computer icon in the menu
-bar, with Setup & Permissions, Capture Once, About, and Quit Helper controls. The app does not claim to be connected:
-**pairing, the relay connection, and approval still run in Terminal**. Quitting
-the menu-bar helper does not stop that separate process; use Ctrl+C there.
+bar, with Setup & Permissions, Capture Once, Local Dashboard, About, and Quit Helper controls. Local Dashboard pairs and approves snapshots in the GUI. The separate document-opening relay connection and approvals still run in Terminal; quitting the menu-bar helper does not stop that process.
 
 The CLI invokes the executable **inside the installed bundle** with `--stdio`.
 That mode preserves the existing private JSON request/response pipe and does
@@ -164,8 +168,10 @@ ratio. Target IDs/titles are shown locally on macOS 15.2+; older versions show a
 per-selection identifier, not an OS target ID. Permission and unavailable-source
 errors are explicit, with no automatic retry or fallback to a broader source.
 
-The image exists only in process memory. No image file, clipboard copy, image
-history, screenshot log, relay upload, or model call is made. Selection is
+Standalone captures exist only in process memory. During a paired dashboard
+request, explicit Share sends the preview to the same-Mac broker for one minute.
+No image file, clipboard copy, image history, screenshot log, off-Mac upload,
+Terminal relay upload, or model call is made. Selection is
 released when a capture finishes. A picker selection or successful preflight is
 not itself evidence of a successful image; the screenshot API must return one.
 
@@ -222,22 +228,13 @@ For a running native operation, cancellation is best effort. A result may still 
 
 The concrete companion contract is in [PROTOCOL.md](PROTOCOL.md), with Zod schemas in [src/protocol.ts](src/protocol.ts). The relay fixture implements that contract for development; replace the transport peer with the assigned authenticated backend. Do not import the fixture into production.
 
-The future `/devices` dashboard, `apps/relay/`, and `packages/device-protocol/` remain separate integration work. No meeting page/provider files were changed. Agree on protocol changes before extracting these schemas into a shared package.
+The same-Mac `/devices` snapshot dashboard is implemented using [its own local contract](LOCAL_DASHBOARD.md). The provider bypasses meeting/model initialization on that route. `apps/relay/`, remote account authentication and `packages/device-protocol/` remain future integration work; do not import the Terminal fixture into production.
 
-Implemented relay capability: `open_resource`. Native GUI features include packaging, permission setup, and local single-window/display snapshots. Streaming, remote keyboard/mouse, window control, voice input, connection/approval controls in the menu-bar app, and server-side AI planning remain future work. The WebGPU meeting model remains explicitly out of scope.
+Implemented relay capability: `open_resource`. Native GUI features include packaging, permission setup, and local single-window/display snapshots. The menu-bar app now has a separate same-Mac snapshot connection and explicit sharing approval. Streaming, remote keyboard/mouse, window control, voice input, and server-side AI planning remain future work. The WebGPU meeting model remains explicitly out of scope.
 
-## Next milestone: integrate capture with the device dashboard
+## Next milestone: remote device access
 
-Packaging, permission setup, and the local capture UI are implemented. Next:
-agree on the authenticated runner-to-GUI and dashboard capture contract before
-sending any images off the Mac or adding remote input. `npm run companion -- app` opens setup. Permissions enabled for Codex
-Computer Use are not a permission check for Hablabla Companion.
-
-Keep this computer-control adapter separate from William's native speech worker
-in the [team handbook](../../TEAM_ARCHITECTURE.md). Coordinate dashboard and
-backend integration through the existing companion protocol. Keep live meeting
-AI verification paused. See [TECH_STACK section 20](../../TECH_STACK.md#20-companion-prototype-and-access-scope)
-for the staged capture/control plan.
+The same-Mac dashboard snapshot flow is implemented. Next work needs an authenticated remote relay, account/device ownership, encrypted transport and explicit destination consent before images leave the Mac. Document opening still uses the Terminal protocol; streaming/input and GUI integration of that runner remain separate milestones. Keep this adapter separate from William’s speech worker and keep live meeting AI verification paused.
 
 ## Verification
 
@@ -303,7 +300,8 @@ Capture verification on September 12, 2026:
   single-window capture failure (`-3811`) from the older screenshot API. The
   macOS 14–15 compatibility path is compiled but not verified on those OS versions.
   Closed-source, forced timeout, and in-flight cancellation races have not been
-  live-tested. Do not claim streaming, remote input, or dashboard image delivery.
+  live-tested. That earlier capture-only run did not verify streaming, remote
+  input, or dashboard delivery; see the later dashboard verification below.
 
 After merging upstream `85baf76`, a clean dependency install and `npm run verify`
 passed all workspace typechecks and **120 tests** (including the new speech
@@ -311,3 +309,11 @@ gateway and optional OpenAI backend tests). These are offline checks, not live
 speech inference or OpenAI verification. The three native bundle checks also
 passed on the final capture build; documentation/merge changes did not rebuild
 the installed app or change its refreshed Screen Recording grant.
+
+Same-Mac dashboard verification: all 132 repository tests/typechecks and three
+native bundle checks passed. Browser pairing, actual permission reporting,
+browser cancellation, native decline, approved image delivery (1146 × 676),
+automatic one-minute image removal and native Disconnect were live-tested.
+The current installed build reports Screen Recording Granted after an approved
+app-scoped refresh. See [LOCAL_DASHBOARD.md](LOCAL_DASHBOARD.md) for the contract
+and remaining limits. The meeting model was not run.

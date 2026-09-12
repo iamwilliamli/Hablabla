@@ -2,7 +2,7 @@
 
 This is Hablabla's application contract, not a vendor SDK. Source of truth: `src/protocol.ts`. All bodies/responses are JSON. The companion sends `Content-Type: application/json` and, after pairing, `Authorization: Bearer <deviceToken>`. Reject redirects. A remote relay must use HTTPS and derive device/owner identity from authenticated credentials, never from an owner ID in the body.
 
-The development fixture is `src/demo-relay.ts`. Its owner operations are process-local methods controlled from Terminal. It intentionally does not implement dashboard sign-in or public `/v1/devices` endpoints. The backend owner must provide those before adding `/devices`.
+The development fixture is `src/demo-relay.ts`. Its owner operations are process-local methods controlled from Terminal. It intentionally does not implement dashboard sign-in or public `/v1/devices` endpoints. The production backend owner must provide those for remote access. The implemented same-Mac `/devices` snapshot route uses a separate GUI-only contract in [LOCAL_DASHBOARD.md](LOCAL_DASHBOARD.md); it does not reuse this fixture.
 
 ## Pairing and registration
 
@@ -79,4 +79,4 @@ The companion persists the command digest before approval, and the execution cla
 
 ## Future capabilities
 
-The native GUI now supports local single-window/display snapshots in memory. This does not add a relay capability or RPC method. Remote capture, stream signaling, remote input, AI planning, and voice are not part of this implemented schema. Add new versioned action schemas and local permission checks before advertising those capabilities. A model or dashboard must never dispatch arbitrary code through `open_resource`.
+The native GUI supports single-window/display snapshots and explicitly approved sharing with the same-Mac dashboard. See [LOCAL_DASHBOARD.md](LOCAL_DASHBOARD.md). This does not add a capability or RPC method to this Terminal relay protocol. Remote capture, stream signaling, remote input, AI planning, and voice are not part of this implemented schema. Add new versioned action schemas and local permission checks before advertising those capabilities. A model or dashboard must never dispatch arbitrary code through `open_resource`.

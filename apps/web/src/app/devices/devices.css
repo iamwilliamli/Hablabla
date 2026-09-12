@@ -1,0 +1,69 @@
+.dv-page { min-height: 100vh; background: #f5f4ec; color: #213d35; --accent: #245545; }
+.dv-page a { color: inherit; text-underline-offset: 4px; }
+.dv-page button { border: 1px solid #c6d0c5; border-radius: 10px; padding: 11px 17px; background: #fffef9; color: #213d35; min-height: 44px; font-weight: 600; }
+.dv-page button:hover:not(:disabled) { background: #e9eee3; }
+.dv-page button:disabled { opacity: .55; cursor: not-allowed; }
+.dv-page :is(a,button,input):focus-visible { outline: 3px solid #377259; outline-offset: 4px; }
+.dv-page .dv-primary { background: #245545; color: #fff; border-color: #245545; }
+.dv-page .dv-primary:hover:not(:disabled) { background: #193e32; }
+.dv-nav { display: flex; gap: 26px; align-items: center; padding: 22px 5%; border-bottom: 1px solid #dce0d3; background: #fbfaf4; }
+.dv-nav > a:nth-child(2) { margin-left: auto; font-size: 13px; }
+.dv-brand { text-decoration: none; font-weight: 750; font-size: 21px; letter-spacing: -.7px; }
+.dv-brand span { background: #245545; color: #fff; border-radius: 6px; margin: 0 9px 0 -7px; padding: 1px 5px; }
+.dv-pill { font-size: 11px; border: 1px solid #d4dbc9; background: #f1f3e8; padding: 5px 11px; border-radius: 20px; white-space: nowrap; }
+.dv-main { max-width: 1370px; margin: auto; padding: 48px 5% 22px; }
+.dv-heading { display: flex; align-items: center; gap: 24px; justify-content: space-between; margin-bottom: 35px; }
+.dv-heading h1 { font-size: clamp(29px,3vw,42px); font-weight: 550; letter-spacing: -1.5px; line-height: 1.2; margin-bottom: 12px; }
+.dv-heading p:last-child { color: #59675d; margin: 0; }
+.dv-eyebrow { font-size: 10px; font-weight: 650; letter-spacing: 1.6px; color: #52654f; margin: 0 0 12px; }
+.dv-mode { font-size: 12px; color: #3a6749; white-space: nowrap; }
+.dv-grid { display: grid; grid-template-columns: 310px minmax(0,1fr); gap: 26px; align-items: start; }
+.dv-sidebar { display: grid; gap: 20px; }
+.dv-card { background: #fffef9; border: 1px solid #d8ddce; border-radius: 16px; padding: 25px; }
+.dv-card-icon { display: inline-flex; padding: 13px; background: #edf1e4; border-radius: 12px; margin-bottom: 18px; }
+.dv-card h2 { font-size: 21px; line-height: 1.3; margin-bottom: 8px; overflow-wrap: anywhere; }
+.dv-card p { color: #566258; font-size: 13px; }
+.dv-connection { display: flex; gap: 7px; align-items: center; }
+.dv-card .is-online { color: #246343; }
+.dv-steps { padding-left: 20px; font-size: 13px; color: #4d5c50; margin: 22px 0; }
+.dv-steps li { padding-left: 4px; margin-bottom: 12px; }
+.dv-card > button { width: 100%; }
+.dv-pairing { border-top: 1px solid #d8ddce; margin-top: 22px; padding-top: 20px; }
+.dv-pairing label { font-size: 12px; display: block; margin-bottom: 8px; }
+.dv-pairing input { width: 100%; min-width: 0; padding: 10px; font-family: ui-monospace,monospace; font-size: 11px; color: #254435; border: 1px solid #bfcbbc; border-radius: 6px; background: #f5f7ee; }
+.dv-pairing p { margin: 9px 0; font-size: 11px; }
+.dv-note { background: #e8edda; border-radius: 14px; padding: 22px 25px; }
+.dv-note > span { font-size: 28px; }
+.dv-note h3 { font-size: 15px; line-height: 1.5; margin: 5px 0 12px; }
+.dv-note p { font-size: 12px; color: #4e614a; margin-bottom: 10px; }
+.dv-note p:last-child { margin-bottom: 0; }
+.dv-viewer { border: 1px solid #d8ddce; background: #fffef9; border-radius: 17px; overflow: hidden; min-width: 0; }
+.dv-viewer-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 23px 28px; border-bottom: 1px solid #e0e4d7; }
+.dv-viewer-heading .dv-eyebrow { margin-bottom: 5px; }
+.dv-viewer-heading h2 { margin: 0; font-size: 20px; font-weight: 550; }
+.dv-canvas { min-height: 360px; aspect-ratio: 16/10; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 48%,#eff2e6, #f7f8f1 65%); padding: 20px; }
+.dv-canvas img { display: block; max-width: 100%; max-height: 500px; object-fit: contain; border-radius: 6px; }
+.dv-empty { max-width: 390px; text-align: center; padding: 24px; color: #688469; }
+.dv-empty svg { margin-bottom: 18px; }
+.dv-empty h3 { color: #345740; font-weight: 500; font-size: 20px; line-height: 1.35; margin-bottom: 12px; }
+.dv-empty p { font-size: 13px; color: #62715f; margin: 0; }
+.dv-viewer-footer { padding: 22px 28px 25px; border-top: 1px solid #e0e4d7; }
+.dv-viewer-footer > p { font-size: 13px; color: #55674f; margin-bottom: 19px; }
+.dv-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.dv-actions .dv-primary { min-width: 200px; }
+.dv-actions span { margin-left: 12px; }
+.dv-permissions { font-size: 12px; margin: 25px 0 16px; }
+.dv-permissions > div { display: flex; gap: 12px; justify-content: space-between; border-bottom: 1px solid #e2e5da; padding: 10px 0; }
+.dv-permissions dd { font-weight: 600; margin: 0; }
+.dv-page .dv-small { font-size: 11px; margin-bottom: 23px; }
+.dv-page .dv-danger { color: #93412d; }
+.dv-metadata { display: flex; flex-wrap: wrap; gap: 10px 22px; font-size: 11px; margin-bottom: 22px; }
+.dv-metadata dt { color: #62715f; }
+.dv-metadata dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.dv-metadata div:first-child { flex-basis: 100%; }
+.dv-bottom { color: #67725f; font-size: 11px; text-align: center; margin: 25px 0 0; }
+.dv-error { color: #873a2c; background: #fff0e6; border: 1px solid #dfbcaa; border-radius: 10px; padding: 14px 18px; }
+.dv-skip { position: absolute; top: -80px; left: 20px; background: white; padding: 12px; z-index: 10; }
+.dv-skip:focus { top: 8px; }
+@media(max-width:900px) { .dv-grid { grid-template-columns: 270px minmax(0,1fr); gap: 18px; } .dv-main { padding: 32px 24px; } .dv-mode { display: none; } .dv-canvas { min-height: 330px; aspect-ratio: auto; } .dv-card { padding: 20px; } }
+@media(max-width:700px) { .dv-grid { grid-template-columns: 1fr; } .dv-sidebar { grid-template-columns: 1fr; } .dv-note { display: none; } .dv-nav { gap: 14px; padding: 17px 20px; } .dv-nav > .dv-pill { display: none; } .dv-nav > a:nth-child(2) { font-size: 11px; } .dv-main { padding: 29px 17px; } .dv-heading { margin-bottom: 25px; } .dv-viewer-heading,.dv-viewer-footer { padding: 20px; } .dv-canvas { padding: 12px; } }

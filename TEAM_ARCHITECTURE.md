@@ -58,10 +58,10 @@ match and obtain confirmation before changing a visible speaker name.
 The separate computer companion now has an implemented Terminal prototype in
 `apps/companion/` (pairing, Keychain credentials, local approval, and registered
 document opening), plus an installed `Hablabla Companion.app` native bundle.
-The app has a setup window with actual Screen Recording/Accessibility checks, refresh and explicit request/Settings controls, plus About/Quit. A separate local capture window selects one display/window through the macOS picker and previews a single image in memory; it does not send images to the dashboard. Connection and approval stay in Terminal.
+The app has a setup window with actual Screen Recording/Accessibility checks, refresh and explicit request/Settings controls, plus About/Quit. A capture window selects one display/window through the macOS picker and previews a single image in memory. The separate same-Mac `/devices` connection now pairs with the GUI and receives that preview only after explicit Share with Dashboard; images expire in one minute. Document-opening connection and approvals stay in Terminal. See [the local dashboard contract](apps/companion/LOCAL_DASHBOARD.md).
 See its [quickstart](apps/companion/README.md) and
 [implemented protocol](apps/companion/PROTOCOL.md), plus TECH_STACK sections
-19–23. Its loopback demo relay is a development fixture; the device dashboard,
+19–23. Its Terminal demo relay remains a separate development fixture; the
 production relay, streaming, and remote-control capabilities remain future work. This
 handbook covers the local meeting workflow and does not replace that
 workstream's ownership boundaries.
@@ -366,8 +366,8 @@ remaining architecture and schedule as targets, not evidence of completion.
 | Native speech | `apps/macos-model-worker/` and authenticated `apps/speech-gateway/` are now merged; no meeting UI integration or `/api/local` routes | William owns worker verification; backend/frontend owners integrate the documented gateway contract |
 | Existing speech code | Handbook identifies a separate LiveTranscriber project | Confirm reuse/provenance and macOS compatibility before claiming integration |
 | Approval | Meeting `MTG-...` IDs use the existing immutable proposal, approval, denial, and read-back gate | Live Ambiguous write verification and coordinated future domain migration |
-| Companion | `apps/companion/` pairs, stores credentials in Keychain, and opens registered files after Terminal approval; its native app bundle has a fixed ID/install path and a setup window with actual GUI-process permission checks and explicit request controls, plus local single-window/display capture | Streaming/control, device dashboard, production relay, and verification of signing/permission persistence |
-| Checks | 120 repository tests/typechecks passed after the backend merge, plus three app-bundle tests for native capture; real local window/display snapshots, clear, and picker cancellation verified on macOS 26; prior web build passed during companion verification | Run checks for subsequent changes; fake inference/provider tests do not verify live models or writes |
+| Companion | `apps/companion/` pairs, stores credentials in Keychain, and opens registered files after Terminal approval; its native app bundle has a fixed ID/install path and a setup window with actual GUI-process permission checks and explicit request controls, plus a same-Mac `/devices` dashboard with session pairing and explicitly approved one-shot images | Remote relay/control, document-command dashboard integration, and verification of signing/permission persistence |
+| Checks | 132 repository tests/typechecks and three app-bundle checks passed for same-Mac dashboard integration; real browser pairing, permission reporting, cancel/decline and approved native-to-browser image rendering verified on macOS 26 | Run checks for subsequent changes; fake inference/provider tests do not verify live models or writes |
 
 The current starter's chat and voice paths include remote model integrations.
 Installing dependencies or launching the starter does not make inference local.

@@ -2,7 +2,11 @@
 
 The home page is Hablabla's meeting workspace, built with Next.js, React, CopilotKit and a WebLLM worker. The inherited incident demo remains at `/reference`; the optional voice example remains at `/voice`.
 
-**Handoff status:** UI implementation, 97 automated tests, and the production build are complete. Live local-AI generation verification is deferred at the user's request after an interrupted browser run. Ambiguous live writes remain unverified. The separate Mac companion now has a Terminal prototype in `apps/companion/`; the device dashboard and production relay remain planned work; see [TECH_STACK.md](../../TECH_STACK.md) for completed work, file ownership, and the proposed integration protocol. Do not replace the meeting UI or resume GPU testing as part of companion work.
+**Handoff status:** UI implementation, 97 automated tests, and the production build are complete. Live local-AI generation verification is deferred at the user's request after an interrupted browser run. Ambiguous live writes remain unverified. The separate Mac companion now has a Terminal prototype in `apps/companion/`; the same-Mac snapshot dashboard is now available at `/devices`, while the production relay remains planned; see [TECH_STACK.md](../../TECH_STACK.md) for completed work, file ownership, and the proposed integration protocol. Do not replace the meeting UI or resume GPU testing as part of companion work.
+
+## Local device dashboard
+
+Open **http://127.0.0.1:3100/devices** while this server runs. Pair it with the installed Hablabla Companion through the app’s **Local Dashboard…** window. Request a snapshot, choose/capture its source in the Mac app, then approve **Share with Dashboard**. Images remain on this Mac and expire after a minute. This route bypasses the meeting agent; it does not start a local or remote model. See the [local protocol and walkthrough](../companion/LOCAL_DASHBOARD.md). Keep the exact loopback bind/host; this is not an internet deployment.
 
 ## Run locally
 

@@ -73,9 +73,26 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
     private lazy var setupWindow: PermissionsWindowController = {
         let controller = PermissionsWindowController()
         controller.onOpenCapture = { [weak self] in self?.showCapture() }
+        controller.onOpenDashboard = { [weak self] in self?.showDashboard() }
         return controller
     }()
     private var captureWindow: NSWindowController?
+    private lazy var dashboardWindow: DashboardWindowController = {
+        let controller = DashboardWindowController()
+        controller.onCancelRequest = { [weak self] in
+            if #available(macOS 14.0, *) { (self?.captureWindow as? CaptureWindowController)?.cancelDashboardRequest() }
+        }
+        controller.onRequest = { [weak self, weak controller] request in
+            guard let self, let controller else { return }
+            if #available(macOS 14.0, *) {
+                self.showCapture()
+                (self.captureWindow as? CaptureWindowController)?.beginDashboardRequest(request, share: { [weak controller] snapshot, done in
+                    controller?.share(requestId: request.id, snapshot: snapshot, completion: done)
+                }, decline: { [weak controller] in controller?.decline(requestId: request.id) })
+            } else { controller.decline(requestId: request.id) }
+        }
+        return controller
+    }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -89,7 +106,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         let title = NSMenuItem(title: "Hablabla Companion", action: nil, keyEquivalent: "")
         title.isEnabled = false
         menu.addItem(title)
-        menu.addItem(NSMenuItem(title: "Connection and approvals run in Terminal", action: nil, keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Local snapshots · Approved sharing", action: nil, keyEquivalent: ""))
         menu.addItem(.separator())
         let setup = NSMenuItem(title: "Setup & Permissions…", action: #selector(showSetup), keyEquivalent: ",")
         setup.target = self
@@ -97,6 +114,9 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         let capture = NSMenuItem(title: "Capture Once…", action: #selector(showCapture), keyEquivalent: "")
         capture.target = self
         menu.addItem(capture)
+        let dashboard = NSMenuItem(title: "Local Dashboard…", action: #selector(showDashboard), keyEquivalent: "d")
+        dashboard.target = self
+        menu.addItem(dashboard)
         let about = NSMenuItem(title: "About Hablabla Companion…", action: #selector(showAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
@@ -114,6 +134,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showSetup() { setupWindow.present() }
+    @objc private func showDashboard() { dashboardWindow.present() }
 
     @objc private func showCapture() {
         if #available(macOS 14.0, *) {
@@ -131,7 +152,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Hablabla Companion"
-        alert.informativeText = "Native helper for approved document opening and local snapshots.\n\nPairing, the device connection, and approval prompts run in your Terminal. Quitting this menu-bar helper does not stop that separate Terminal process.\n\nCapture Once previews one user-selected window or display locally. Streaming and remote input are not enabled."
+        alert.informativeText = "Native helper for approved document opening and snapshots.\n\nLocal Dashboard pairs this app with a browser on this Mac. Each snapshot requires source selection, capture, and explicit sharing. Closing the connection window stops sharing.\n\nThe separate Terminal process still handles document opening. Quitting this helper does not stop that process. Streaming and remote input are not enabled."
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }

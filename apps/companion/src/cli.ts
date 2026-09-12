@@ -46,7 +46,7 @@ async function main() {
   if (!command || command === "help") { console.log(help); return; }
   if (command === "app") {
     await launchCompanionApp();
-    console.log("Background helper launched. Start the companion in Terminal to connect and approve requests."); return;
+    console.log("Background helper launched. Open Local Dashboard for approved snapshots. Document-opening approvals still use the Terminal runner."); return;
   }
   if (command === "app-info") { console.log(JSON.stringify(await appIdentity(), null, 2)); return; }
   if (command === "unlock") { await unlock(directory); console.log("Stale lock removed."); return; }

@@ -5,6 +5,7 @@ import CoreGraphics
 /// These checks run in the launched companion, never in the Terminal RPC helper.
 final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
     var onOpenCapture: (() -> Void)?
+    var onOpenDashboard: (() -> Void)?
     private let screenStatus = NSTextField(labelWithString: "Checking…")
     private let accessibilityStatus = NSTextField(labelWithString: "Checking…")
     private let checkedAt = NSTextField(labelWithString: "")
@@ -95,16 +96,17 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
         checkedAt.font = .systemFont(ofSize: 12)
         checkedAt.textColor = .secondaryLabelColor
         let capture = button("Open Capture…", action: #selector(openCapture))
-        let footer = NSStackView(views: [refresh, capture, checkedAt])
+        let dashboard = button("Local Dashboard…", action: #selector(openDashboard))
+        let footer = NSStackView(views: [refresh, capture, dashboard])
         footer.orientation = .horizontal
         footer.spacing = 12
-        let identity = label("App: \(Bundle.main.bundleIdentifier ?? "Unknown")\nConnection and document approvals continue in Terminal.", size: 12)
+        let identity = label("App: \(Bundle.main.bundleIdentifier ?? "Unknown")\nDocument approvals continue in Terminal. Use Local Dashboard for approved snapshot sharing.", size: 12)
         identity.textColor = .secondaryLabelColor
         identity.isSelectable = true
-        let stack = NSStackView(views: [title, intro, screen, accessibility, note, feedback, footer, identity])
+        let stack = NSStackView(views: [title, intro, screen, accessibility, note, feedback, footer, checkedAt, identity])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 18
+        stack.spacing = 15
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -177,4 +179,5 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
     @objc private func openScreenSettings() { openSettings("Privacy_ScreenCapture") }
     @objc private func openAccessibilitySettings() { openSettings("Privacy_Accessibility") }
     @objc private func openCapture() { onOpenCapture?() }
+    @objc private func openDashboard() { onOpenDashboard?() }
 }

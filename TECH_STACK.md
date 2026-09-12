@@ -47,7 +47,7 @@ it does not require browser WebGPU or a hosted pyannote service.
 - **Local AI generation verification is explicitly deferred at the user's request. Do not restart model downloads, inference experiments, or GPU troubleshooting unless the user asks to resume.** Keep the implementation and error states intact.
 - Real generation quality, generated-card delivery, repeat requests, cancellation, and the 1B fallback still need live hardware verification. Unit tests do not establish these live behaviors.
 - Ambiguous was not configured for the UI verification. No real task was written; live approval/read-back still needs a configured test workspace and an authorized test.
-- The initial frontend change did not implement device control. The companion update below now supplies a Terminal prototype and loopback relay fixture. The `/devices` dashboard, production relay, screen streaming, and remote input remain planned. The homepage is still the meeting workspace.
+- The initial frontend change did not implement device control. The companion update below now supplies a Terminal prototype and loopback relay fixture. A same-Mac snapshot dashboard now exists at `/devices`; the production relay, screen streaming, and remote input remain planned. The homepage is still the meeting workspace.
 
 ### Files and ownership
 
@@ -57,7 +57,7 @@ it does not require browser WebGPU or a hosted pyannote service.
 | Meeting local AI; verification paused | `apps/web/src/lib/local-ai/`, `apps/web/src/workers/webllm.worker.ts` | Do not replace with cloud inference or resume live tests as a side effect of companion work. |
 | Existing meeting approval backend | `apps/web/src/app/api/followups/`, `apps/web/src/lib/server/`, `apps/web/src/lib/followup-*` | Keep existing approval behavior. Device commands use a separate contract and service. |
 | **Mac companion — implemented under the user's explicit companion assignment** | `apps/companion/` (TypeScript runner, Swift helper, protocol, tests, demo fixture) | Preserve this implementation. Future frontend tasks must use its documented contract and must not scaffold over it. |
-| Device dashboard — future frontend task | Proposed `apps/web/src/app/devices/`, `apps/web/src/components/devices/`, `apps/web/src/lib/devices/` | Add a separate `/devices` route; coordinate any shared navigation/layout/provider changes. |
+| Device dashboard — same-Mac snapshot flow implemented | `apps/web/src/app/devices/`, `apps/web/src/components/devices/`, `apps/web/src/lib/devices-protocol.ts`, `apps/web/src/lib/server/local-devices.ts`, `apps/web/src/app/api/devices/` | Browser pairing and explicitly approved native snapshots. Separate local contract; preserve the meeting routes and provider bypass. |
 | Pairing and communication — future backend task | Proposed `apps/relay/` | Backend owner builds authenticated device registry, pairing, command delivery, results, and stream signaling. Do not assume this service exists yet. |
 | Shared device protocol — joint interface review | Proposed `packages/device-protocol/`; initial design in section 21 | Agree on schemas before either side implements them. One owner lands shared contract changes; consumers update together. |
 | Shared root configuration | `package.json`, `package-lock.json`, `AGENTS.md`, `TECH_STACK.md`, `apps/web/src/app/layout.tsx`, `apps/web/src/components/providers.tsx`, `apps/web/next.config.ts` | Coordinate edits. The current provider registers a browser-local agent; isolate `/devices` if it needs different agent/auth providers. Root scripts now include the companion workspace alongside web/channel and shared packages. |
@@ -73,16 +73,16 @@ The user explicitly assigned companion implementation after the initial handoff.
 
 - TypeScript/Node runner plus a compiled Swift macOS adapter. Outbound authenticated connection, one-time pairing, device credentials in Keychain, registered document IDs, local Terminal approval, Launch Services file opening, and correlated results.
 - Canonical path/content-hash registration, strict typed actions, short expiry, reauthorization before dispatch, cancellation, one active process, durable command/result journal, and conservative `unknown` recovery after uncertain execution. No arbitrary shell or auto-approval mode.
-- A **loopback-only development relay fixture** inside the companion workspace makes the flow runnable today. Its admin interface is Terminal. It is not the future production backend and does not expose the web dashboard. Keep `apps/relay/` and `/devices` reserved for their own integration tasks.
+- A **loopback-only development relay fixture** inside the companion workspace makes the document flow runnable. Its admin interface is Terminal. It is not the future production backend and does not expose the web dashboard. The new `/devices` snapshot dashboard uses its own local broker; `apps/relay/` remains future work.
 - Concrete schemas currently live in `apps/companion/src/protocol.ts`. The v1 transport uses authenticated connect/poll/heartbeat/authorize/events/revoke HTTP endpoints. The earlier candidate endpoints in section 21 remain a dashboard/backend design; use the companion protocol document for the implemented wire format before extracting a shared package.
 - `npm run verify` passed **112 tests** (the original 97 plus 15 companion tests) and every workspace typecheck. The Swift helper compiled and the web production build passed. A live paired request opened the bundled TXT document, observed in TextEdit; denial and Ctrl+C cancellation reached the relay. Test credentials were revoked and removed afterward.
 - `succeeded / open_dispatched` means macOS accepted the file-open request. The smoke test separately observed its visible window. The relay prototype does not return screen images or prove visibility automatically; local snapshots use the separate native GUI.
-- The native helper is now packaged as `Hablabla Companion.app` with bundle ID `com.hablabla.companion`, installed by `companion:install` at `~/Applications/Hablabla Companion.app`. The CLI uses its bundled executable. Its setup window reports real Screen Recording/Accessibility status, refreshes automatically, and offers explicit request/Settings controls; pairing and approval remain in Terminal.
+- The native helper is now packaged as `Hablabla Companion.app` with bundle ID `com.hablabla.companion`, installed by `companion:install` at `~/Applications/Hablabla Companion.app`. The CLI uses its bundled executable. Its setup window reports real Screen Recording/Accessibility status, refreshes automatically, and offers explicit request/Settings controls. Document pairing/approval remain in Terminal; local snapshot pairing/sharing now run in the GUI.
 - Packaging checks passed: 113 repository tests/typechecks, three bundle tests, installed-app identity/signature, Keychain round-trip, and an approved live document-open request. The local build uses ad-hoc signing; certificate signing can be selected explicitly with `HABLABLA_SIGNING_IDENTITY`. Ad-hoc rebuilds do not guarantee retained macOS permission grants.
 - Setup verification: all 113 repository tests/typechecks and three bundle tests passed again. The installed window was visually/accessibility inspected; both checks initially reported **Not granted**, and Accessibility updated to **Granted** during user interaction. Screen Recording grant/relaunch and signing persistence remain unverified. No capture or automated permission grants were performed.
 - Local capture UI is implemented in `apps/companion/native/CaptureWindow.swift`: macOS system picker, one selected window/display, explicit Capture Once, in-memory preview, actual dimensions/timestamps, cancellation/clear/timeout handling. macOS 14+ is required for capture (26 uses the new screenshot API). Nothing is uploaded or added to the relay contract.
 - Final local-capture verification: 113 repository tests/typechecks and three bundle tests passed. Real window (2560 × 1513) and display (2560 × 1665) images were visually verified on macOS 26, plus clear and picker cancellation. The old enabled TCC entry was refreshed with user approval; Screen Recording now reports Granted in the installed build. macOS 14–15 capture, forced timeouts, in-flight cancellation races, and certificate-based permission persistence remain unverified.
-- Streaming, keyboard/mouse control, window management, full menu-bar connection/approval controls, voice, server-side AI, public relay authentication/deployment, and `/devices` are still unimplemented. Local meeting-AI verification remains paused.
+- Same-Mac dashboard integration is now implemented and verified; see section 20 and [LOCAL_DASHBOARD.md](apps/companion/LOCAL_DASHBOARD.md). It has local session pairing, native preview/share approval, one-minute image expiry and disconnect controls. Streaming, keyboard/mouse control, window management, voice, server-side AI and public relay authentication/deployment remain unimplemented. Local meeting-AI verification remains paused.
 
 
 ### Speech/backend merge accompanying local capture
@@ -681,7 +681,7 @@ For multiple windows, the initial device viewer shows **one selected Mac display
 
 A later WebRTC stream is a proposed media transport, with authenticated signaling through the relay and a separate scoped control channel. Until a transport is implemented and tested, use a still capture and label its timestamp; do not present stale frames as a live stream.
 
-### Local capture implemented; next milestone is dashboard integration
+### Local capture and same-Mac dashboard implemented
 
 The app packaging is implemented: fixed bundle ID `com.hablabla.companion`,
 user install path, signature verification, and a setup/About/Quit menu. The
@@ -691,10 +691,10 @@ CLI invokes its bundled executable with `--stdio` for Keychain and
 two-second visible-window timer, and a manual refresh button. Requests happen
 only through explicit user buttons; their return does not imply access. A false
 check is shown as **Not granted**, without guessing denied versus never requested.
-Permission status and snapshots are not exposed through the relay or Terminal
-RPC. A separate native capture window uses the system picker and screenshot API,
+Permission status and snapshots are not exposed through the Terminal relay or
+RPC. The new same-Mac GUI connection exposes them through its separate authenticated local dashboard contract. A separate native capture window uses the system picker and screenshot API,
 shows one still image with pixel dimensions and request/receive timestamps, and
-discards it on Clear or close. Images stay in memory; no saving/upload is enabled.
+discards it on Clear or close. Images stay in memory. A paired browser can request one image, but receives it only after the user reviews the native preview and clicks Share with Dashboard. No off-Mac or model upload is enabled.
 Capture uses one explicit button press after each selection, releases the source
 after completion, ignores late results, and reports failures without broadening
 the selected target. It requires macOS 14+ and caps image dimensions at 2560 px.
@@ -705,18 +705,46 @@ recovery for an enabled but stale Settings grant. The macOS TCC log confirmed a
 code-requirement mismatch after an ad-hoc rebuild; resetting only this app’s
 ScreenCapture entry and granting the installed build restored its access.
 
-The setup separates screen viewing from control. Next, agree on an authenticated
-runner-to-GUI bridge and dashboard capture contract, with explicit image-sharing
-consent. Accessibility-backed window/input operations remain a later capability. Permission status must come from the companion
-process, not from the dashboard or the development tool. Permissions enabled for
-Codex Computer Use do not establish permission for the shipped companion.
+The user chose **same-Mac first** for the next milestone. The implemented flow is:
+open `http://127.0.0.1:3100/devices`, create an expiring pairing code, paste it in
+**Local Dashboard…** in the companion, request a snapshot, choose/capture its
+source locally, then explicitly share the preview. Decline, Clear, expiry and
+Disconnect cancel/discard the relevant work. The browser shows the real native
+permission checks, connection state, source, capture time and dimensions.
 
-Keep captures local for the first check; return a fresh timestamp, target ID,
-and dimensions with any later authorized dashboard result. Add explicit capture
-consent, denial/revocation states, and a stop control before enabling streaming
-or remote input. Do not advertise a capability until its OS adapter and tests
-exist. This work belongs under `apps/companion/`; William's speech worker and the
-meeting frontend remain separate components.
+Implementation and source of truth: [LOCAL_DASHBOARD.md](apps/companion/LOCAL_DASHBOARD.md).
+The native GUI polls the Next.js loopback broker directly; it never launches a
+Terminal subprocess for capture. There is no runner-to-GUI IPC and the existing
+`open_resource` protocol/fixture remains separate. The native app retains its
+bundle ID and install path. `/devices` bypasses the meeting CopilotKit/WebGPU
+provider; `/`, `/reference`, and `/voice` retain their existing provider modes.
+
+Local protocol v1 uses a 128-bit, two-minute, single-use challenge; a server-issued
+HttpOnly/SameSite=Strict browser session; and a separate 256-bit native bearer
+token. Exact loopback Host and browser Origin checks apply. Pairings, tokens,
+metadata and JPEGs are in memory only; restarting either peer requires pairing
+again. One pending request per device, two-minute requests, one-minute images,
+strict size/schema checks, request-ID replay protection, heartbeat cancellation
+and immediate revocation are implemented. The browser receives images only
+through its authenticated, no-store media route. This is local session pairing,
+not an internet account/relay service; keep the server bound to `127.0.0.1`.
+
+Verification: all **132 repository tests** and workspace typechecks passed, plus
+three native bundle checks. Twelve new broker tests exercise owner/device
+isolation, forged credentials, Host/Origin enforcement, pairing expiry/replay,
+request replay, denial, cancellation, peer loss, session/image expiry, metadata
+validation and bounded bodies. Live same-Mac browser pairing, actual permission
+reporting, cancel/decline, and a shared window capture with matching decoded
+1146 × 676 dimensions and timestamp passed. The rebuilt ad-hoc app required the
+already-documented scoped Screen Recording refresh. Legacy macOS capture paths
+and signing-grant persistence are not established by this run.
+
+Next milestones are an authenticated remote relay, document-command dashboard
+integration, streaming and separately permitted input. Off-Mac image sharing
+requires a concrete authenticated destination and explicit consent. Accessibility
+checks currently report status only; no control actions are added. Keep the
+computer companion separate from William's speech worker, and keep live meeting
+AI generation verification paused.
 
 ## 21. Proposed application protocol v1
 
