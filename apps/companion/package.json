@@ -1,0 +1,18 @@
+{
+  "name": "companion",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx src/cli.ts",
+    "demo-relay": "node --import tsx src/demo-relay-cli.ts",
+    "build:native": "node scripts/build-native.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test src/*.test.ts",
+    "install:app": "node scripts/install-app.mjs",
+    "test:bundle": "node --test scripts/app-bundle.test.mjs"
+  },
+  "dependencies": {
+    "zod": "^4.1.0"
+  }
+}
