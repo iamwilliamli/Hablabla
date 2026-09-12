@@ -80,7 +80,7 @@ The user explicitly assigned companion implementation after the initial handoff.
 - The native helper is now packaged as `Hablabla Companion.app` with bundle ID `com.hablabla.companion`, installed by `companion:install` at `~/Applications/Hablabla Companion.app`. The CLI uses its bundled executable. Its setup window reports real Screen Recording/Accessibility status, refreshes automatically, and offers explicit request/Settings controls. Document pairing/approval remain in Terminal; local snapshot pairing/sharing now run in the GUI.
 - Packaging checks passed: 113 repository tests/typechecks, three bundle tests, installed-app identity/signature, Keychain round-trip, and an approved live document-open request. The local build uses ad-hoc signing; certificate signing can be selected explicitly with `HABLABLA_SIGNING_IDENTITY`. Ad-hoc rebuilds do not guarantee retained macOS permission grants.
 - Setup verification: all 113 repository tests/typechecks and three bundle tests passed again. The installed window was visually/accessibility inspected; both checks initially reported **Not granted**, and Accessibility updated to **Granted** during user interaction. Screen Recording grant/relaunch and signing persistence remain unverified. No capture or automated permission grants were performed.
-- Local capture UI is implemented in `apps/companion/native/CaptureWindow.swift`: macOS system picker, one selected window/display, explicit Capture Once, in-memory preview, actual dimensions/timestamps, cancellation/clear/timeout handling. macOS 14+ is required for capture (26 uses the new screenshot API). Nothing is uploaded or added to the relay contract.
+- Local capture UI is implemented in `apps/companion/native/CaptureWindow.swift`: macOS system picker, one selected window/display, explicit Capture Once, in-memory preview, actual dimensions/timestamps, cancellation/clear/timeout handling. macOS 14+ is required for capture (26 uses the new screenshot API). Standalone capture sends nothing; the later same-Mac dashboard flow requires explicit sharing and leaves the Terminal relay contract unchanged.
 - Final local-capture verification: 113 repository tests/typechecks and three bundle tests passed. Real window (2560 × 1513) and display (2560 × 1665) images were visually verified on macOS 26, plus clear and picker cancellation. The old enabled TCC entry was refreshed with user approval; Screen Recording now reports Granted in the installed build. macOS 14–15 capture, forced timeouts, in-flight cancellation races, and certificate-based permission persistence remain unverified.
 - Same-Mac dashboard integration is now implemented and verified; see section 20 and [LOCAL_DASHBOARD.md](apps/companion/LOCAL_DASHBOARD.md). It has local session pairing, native preview/share approval, one-minute image expiry and disconnect controls. Streaming, keyboard/mouse control, window management, voice, server-side AI and public relay authentication/deployment remain unimplemented. Local meeting-AI verification remains paused.
 
@@ -735,7 +735,8 @@ isolation, forged credentials, Host/Origin enforcement, pairing expiry/replay,
 request replay, denial, cancellation, peer loss, session/image expiry, metadata
 validation and bounded bodies. Live same-Mac browser pairing, actual permission
 reporting, cancel/decline, and a shared window capture with matching decoded
-1146 × 676 dimensions and timestamp passed. The rebuilt ad-hoc app required the
+1146 × 676 dimensions and timestamp passed, as did automatic image expiry and
+native disconnection. The rebuilt ad-hoc app required the
 already-documented scoped Screen Recording refresh. Legacy macOS capture paths
 and signing-grant persistence are not established by this run.
 

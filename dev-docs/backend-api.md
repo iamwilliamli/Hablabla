@@ -200,12 +200,20 @@ The following is an inventory, not the stable external contract for William's sp
 | GET/POST/OPTIONS `/api/mobile-copilotkit/*` | Mobile template runtime routes |
 | POST `/api/search` | Inherited search example; body contains `query` and optional `results` |
 | POST `/api/realtime-token` | Inherited voice example returning a temporary client credential, not a Parakeet ticket |
+| GET/POST `/api/devices` | Same-Mac companion snapshot broker: browser session pairing, native polling, explicit image sharing, authenticated short-lived media; [local contract](../apps/companion/LOCAL_DASHBOARD.md) |
 
 Source code alone does not establish that these templates have been publicly released. Each requires authentication, authorization, and data-handling agreements before external deployment.
 
 The `/care` demo and `/api/care/*` drafts were removed at the user's request. The medical scenario remains only in [design section 24](../TECH_STACK.md#24-doctor-and-patient-assistant--proposed-design). Frontend integration uses the generic transcription interfaces in this document; William does not implement the medical frontend, reports, or browser agent.
 
 Companion has a separate pairing/connect/poll/heartbeat/authorize/events/revoke protocol; see the [Companion protocol](../apps/companion/PROTOCOL.md). Its current relay is a development fixture, not a route on the speech port, and does not implement a public device-management API.
+
+The separately implemented `/devices` page uses the GUI's same-Mac snapshot
+contract at `/api/devices`; it does not reuse the Terminal relay or speech
+gateway. It requires the exact `http://127.0.0.1:3100` origin and an explicit
+native pairing/share flow. This is not a public device API or account login.
+The meeting frontend/provider modes and paused local-model verification remain
+separate from this companion integration.
 
 No separate public Nemotron HTTP endpoint, speaker enrollment/identity HTTP endpoint, meeting CRUD API, or persistent analysis-job API was found in the current source review. Do not describe architecture plans or Python/Swift modules as exposed endpoints.
 
