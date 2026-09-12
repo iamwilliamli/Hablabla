@@ -4,6 +4,7 @@ import CoreGraphics
 
 /// These checks run in the launched companion, never in the Terminal RPC helper.
 final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
+    var onOpenCapture: (() -> Void)?
     private let screenStatus = NSTextField(labelWithString: "Checking…")
     private let accessibilityStatus = NSTextField(labelWithString: "Checking…")
     private let checkedAt = NSTextField(labelWithString: "")
@@ -11,6 +12,7 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
     private var screenRequest: NSButton!
     private var accessibilityRequest: NSButton!
     private var refreshTimer: Timer?
+    private var lastAccess: (screen: Bool, accessibility: Bool)?
 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 650),
@@ -22,7 +24,7 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
         window.delegate = self
         buildContent()
         window.center()
-        NotificationCenter.default.addObserver(self, selector: #selector(refreshStatus),
+        NotificationCenter.default.addObserver(self, selector: #selector(pollStatus),
             name: NSApplication.didBecomeActiveNotification, object: nil)
     }
 
@@ -35,7 +37,7 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
         refreshStatus()
         refreshTimer?.invalidate()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            self?.refreshStatus()
+            self?.pollStatus()
         }
     }
 
@@ -79,7 +81,7 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
         let title = label("Set up your companion", size: 25, weight: .bold)
         let intro = label("Live macOS permission checks for Hablabla Companion on this Mac. Opening this window does not request access.")
         let screen = section("Screen Recording",
-            description: "Allows reading your screen for future screen sharing. This version does not capture or stream your screen.",
+            description: "Allows reading screen content. Open Capture to choose a window or display and preview one snapshot locally.",
             status: screenStatus, request: screenRequest, settingsAction: #selector(openScreenSettings))
         let accessibility = section("Accessibility",
             description: "Allows controlling apps for future approved actions. This version does not send mouse or keyboard input.",
@@ -92,7 +94,8 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
         refresh.keyEquivalentModifierMask = .command
         checkedAt.font = .systemFont(ofSize: 12)
         checkedAt.textColor = .secondaryLabelColor
-        let footer = NSStackView(views: [refresh, checkedAt])
+        let capture = button("Open Capture…", action: #selector(openCapture))
+        let footer = NSStackView(views: [refresh, capture, checkedAt])
         footer.orientation = .horizontal
         footer.spacing = 12
         let identity = label("App: \(Bundle.main.bundleIdentifier ?? "Unknown")\nConnection and document approvals continue in Terminal.", size: 12)
@@ -116,15 +119,30 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc private func refreshStatus() {
+        readStatus(updateTime: true)
+    }
+
+    @objc private func pollStatus() {
+        readStatus(updateTime: false)
+    }
+
+    private func readStatus(updateTime: Bool) {
         guard window?.isVisible == true else { return }
         // Preflight APIs only: neither check displays a permission prompt.
         let screenGranted = CGPreflightScreenCaptureAccess()
         let accessibilityGranted = AXIsProcessTrusted()
-        update(screenStatus, permission: "Screen Recording", granted: screenGranted)
-        update(accessibilityStatus, permission: "Accessibility", granted: accessibilityGranted)
-        screenRequest.isEnabled = !screenGranted
-        accessibilityRequest.isEnabled = !accessibilityGranted
-        checkedAt.stringValue = "Checked \(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium))"
+        let changed = lastAccess?.screen != screenGranted || lastAccess?.accessibility != accessibilityGranted
+        if changed {
+            update(screenStatus, permission: "Screen Recording", granted: screenGranted)
+            update(accessibilityStatus, permission: "Accessibility", granted: accessibilityGranted)
+            screenRequest.isEnabled = !screenGranted
+            accessibilityRequest.isEnabled = !accessibilityGranted
+            lastAccess = (screenGranted, accessibilityGranted)
+        }
+        // Keep background polling quiet for VoiceOver and other accessibility clients.
+        if changed || updateTime {
+            checkedAt.stringValue = "Checked \(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium))"
+        }
     }
 
     private func update(_ status: NSTextField, permission: String, granted: Bool) {
@@ -158,4 +176,5 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
 
     @objc private func openScreenSettings() { openSettings("Privacy_ScreenCapture") }
     @objc private func openAccessibilitySettings() { openSettings("Privacy_Accessibility") }
+    @objc private func openCapture() { onOpenCapture?() }
 }

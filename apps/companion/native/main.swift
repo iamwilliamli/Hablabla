@@ -70,7 +70,12 @@ if op == "identity" {
 
 final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
-    private lazy var setupWindow = PermissionsWindowController()
+    private lazy var setupWindow: PermissionsWindowController = {
+        let controller = PermissionsWindowController()
+        controller.onOpenCapture = { [weak self] in self?.showCapture() }
+        return controller
+    }()
+    private var captureWindow: NSWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -89,6 +94,9 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         let setup = NSMenuItem(title: "Setup & Permissions…", action: #selector(showSetup), keyEquivalent: ",")
         setup.target = self
         menu.addItem(setup)
+        let capture = NSMenuItem(title: "Capture Once…", action: #selector(showCapture), keyEquivalent: "")
+        capture.target = self
+        menu.addItem(capture)
         let about = NSMenuItem(title: "About Hablabla Companion…", action: #selector(showAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
@@ -107,11 +115,23 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showSetup() { setupWindow.present() }
 
+    @objc private func showCapture() {
+        if #available(macOS 14.0, *) {
+            if captureWindow == nil { captureWindow = CaptureWindowController() }
+            (captureWindow as? CaptureWindowController)?.present()
+        } else {
+            let alert = NSAlert()
+            alert.messageText = "Capture requires macOS 14 or later"
+            alert.informativeText = "Document opening and permission setup remain available on this Mac."
+            alert.runModal()
+        }
+    }
+
     @objc private func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Hablabla Companion"
-        alert.informativeText = "Native helper for approved document opening.\n\nPairing, the device connection, and approval prompts run in your Terminal. Quitting this menu-bar helper does not stop that separate Terminal process.\n\nScreen capture and remote input are not enabled in this version."
+        alert.informativeText = "Native helper for approved document opening and local snapshots.\n\nPairing, the device connection, and approval prompts run in your Terminal. Quitting this menu-bar helper does not stop that separate Terminal process.\n\nCapture Once previews one user-selected window or display locally. Streaming and remote input are not enabled."
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }

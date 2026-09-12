@@ -70,7 +70,7 @@ npm run companion -- app-info
 ```
 
 Opening the app shows its **Setup** window and a small computer icon in the menu
-bar, with Setup & Permissions, About, and Quit Helper controls. The app does not claim to be connected:
+bar, with Setup & Permissions, Capture Once, About, and Quit Helper controls. The app does not claim to be connected:
 **pairing, the relay connection, and approval still run in Terminal**. Quitting
 the menu-bar helper does not stop that separate process; use Ctrl+C there.
 
@@ -105,11 +105,11 @@ account IDs are retained; macOS may request Keychain authorization when code
 identity changes. This build is not notarized or packaged for public distribution.
 
 Packaging does not grant Screen Recording or Accessibility access. The setup
-window now checks both permissions in the running background app. Future capture
-and control operations must verify authorization from their own process, including
+window checks both permissions in the running background app. Capture now runs
+in that same app; future control operations must verify their own authorization, including
 its launch path; a Terminal-launched `--stdio` process must not be assumed to inherit
 grants observed in a Finder-launched app or in Codex Computer Use. The background
-app is the intended host for future permission-sensitive operations; integrating
+app hosts the local capture UI; integrating
 its communication with the runner is a separate next step.
 
 ### Setup window
@@ -123,7 +123,9 @@ Both report actual access for the GUI process. No permission is inferred from
 Codex, Terminal, a dashboard, or a stored configuration flag.
 
 - Status refreshes on opening, app activation, every two seconds while the window
-  is open, and with **Refresh Status** (Command-R).
+  is open, and with **Refresh Status** (Command-R). Background polls only update
+  the visible text when access changes, keeping accessibility clients quiet. The
+  timestamp records the last manual/open check or permission change.
 - **Not granted** covers both an unanswered request and denied access; these
   APIs do not distinguish those cases. Screen Recording may require quitting and
   reopening the app after changing permission before preflight reports access.
@@ -137,6 +139,57 @@ Codex, Terminal, a dashboard, or a stored configuration flag.
 
 Permission status and requests are local GUI features, not new relay/RPC
 capabilities. Existing document opening does not require these grants.
+
+## Capture one window or display locally
+
+Requires **macOS 14+**. Document opening and setup still support macOS 13.
+
+1. Open the app and click **Open Capture…**, or use **Capture Once…** in its menu.
+2. Choose **Choose Window…** or **Choose Display…**. Complete the macOS system
+   picker for exactly one target, or cancel without taking a screenshot.
+3. Review the selected source and click **Capture Once**. Picking alone does not
+   take an image. Accessibility is not required for this capture-only workflow.
+4. Inspect the still preview, actual pixel dimensions, and request/receive times.
+   The image does not update; select a source again for every new snapshot.
+5. **Clear** or close the capture window to discard the image and source. Late
+   results are ignored after clear, close, or the 15-second timeout.
+
+The native GUI uses Apple's
+[system content picker](https://developer.apple.com/documentation/screencapturekit/sccontentsharingpicker)
+and [SCScreenshotManager](https://developer.apple.com/documentation/screencapturekit/scscreenshotmanager).
+On macOS 26 it uses `captureScreenshot` with SDR output and no file URL;
+macOS 14–15 use `captureImage`. It creates no ongoing `SCStream`, records no audio,
+and limits output to a maximum dimension of 2560 pixels while preserving aspect
+ratio. Target IDs/titles are shown locally on macOS 15.2+; older versions show a
+per-selection identifier, not an OS target ID. Permission and unavailable-source
+errors are explicit, with no automatic retry or fallback to a broader source.
+
+The image exists only in process memory. No image file, clipboard copy, image
+history, screenshot log, relay upload, or model call is made. Selection is
+released when a capture finishes. A picker selection or successful preflight is
+not itself evidence of a successful image; the screenshot API must return one.
+
+### Enabled in Settings but the app reports no access
+
+An ad-hoc rebuild changes the app's designated code requirement. During testing,
+macOS retained an enabled Settings row but rejected the new executable with
+`SCStreamError.userDeclined` (`-3801`); the TCC log confirmed a code-requirement
+mismatch. Relaunching or toggling the stale entry alone did not resolve it.
+
+After finishing and installing a development build, quit the helper and reset
+**only this app's Screen Recording entry** if that mismatch occurs:
+
+```bash
+tccutil reset ScreenCapture com.hablabla.companion
+npm run companion -- app
+```
+
+Use **Request Screen Recording…**, enable Hablabla Companion in its Settings
+pane, and choose **Quit & Reopen** if prompted. Confirm the running app reports
+**Granted**, then retry capture. This reset clears the old grant; it does not
+silently grant access or reset other apps. Do not rebuild again between granting
+and testing. Use a consistent certificate signing identity for durable updates;
+certificate-based permission persistence is still unverified here.
 
 ## Local state and permissions
 
@@ -171,13 +224,13 @@ The concrete companion contract is in [PROTOCOL.md](PROTOCOL.md), with Zod schem
 
 The future `/devices` dashboard, `apps/relay/`, and `packages/device-protocol/` remain separate integration work. No meeting page/provider files were changed. Agree on protocol changes before extracting these schemas into a shared package.
 
-Implemented capability: `open_resource`, plus native app packaging, a setup window with actual permission checks/request controls, and an About/Quit menu. Screen capture, streaming, remote keyboard/mouse, window control, voice input, connection/approval controls in the menu-bar app, and server-side AI planning remain future work. The WebGPU meeting model remains explicitly out of scope.
+Implemented relay capability: `open_resource`. Native GUI features include packaging, permission setup, and local single-window/display snapshots. Streaming, remote keyboard/mouse, window control, voice input, connection/approval controls in the menu-bar app, and server-side AI planning remain future work. The WebGPU meeting model remains explicitly out of scope.
 
-## Next milestone: one screen capture
+## Next milestone: integrate capture with the device dashboard
 
-Packaging and permission setup are implemented. Next: implement and verify one
-user-selected screen/window capture in the background app before adding remote
-input. `npm run companion -- app` opens setup. Permissions enabled for Codex
+Packaging, permission setup, and the local capture UI are implemented. Next:
+agree on the authenticated runner-to-GUI and dashboard capture contract before
+sending any images off the Mac or adding remote input. `npm run companion -- app` opens setup. Permissions enabled for Codex
 Computer Use are not a permission check for Hablabla Companion.
 
 Keep this computer-control adapter separate from William's native speech worker
@@ -233,3 +286,21 @@ Permission-setup verification on September 12, 2026:
   in that process; a grant/relaunch flow was not fully verified.
 - No automated permission grants, capture, or remote input were performed.
   Permission persistence across changed builds remains unverified.
+
+Capture verification on September 12, 2026:
+
+- All **113 repository tests**, workspace typechecks, and **three bundle tests**
+  passed. The bundle tests reject both display and window capture over RPC.
+- On the final installed build, the running process reported **Screen Recording:
+  Granted** after refreshing the stale entry with the user's approval. Only this
+  app's ScreenCapture grant was reset; Accessibility was not refreshed.
+- Verified a real selected-window image (2560 × 1513) and a display image
+  (2560 × 1665), with actual request/receive timestamps and a visible, correctly
+  sized preview. Both final checks used the macOS 26 screenshot API.
+- Verified Clear removes image/metadata/source and system-picker Cancel returns
+  to an empty state without capturing. Images were cleared after testing.
+- Earlier attempts exercised authorization denial (`-3801`) and an internal
+  single-window capture failure (`-3811`) from the older screenshot API. The
+  macOS 14–15 compatibility path is compiled but not verified on those OS versions.
+  Closed-source, forced timeout, and in-flight cancellation races have not been
+  live-tested. Do not claim streaming, remote input, or dashboard image delivery.

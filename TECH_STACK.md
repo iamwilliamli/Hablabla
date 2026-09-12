@@ -76,11 +76,13 @@ The user explicitly assigned companion implementation after the initial handoff.
 - A **loopback-only development relay fixture** inside the companion workspace makes the flow runnable today. Its admin interface is Terminal. It is not the future production backend and does not expose the web dashboard. Keep `apps/relay/` and `/devices` reserved for their own integration tasks.
 - Concrete schemas currently live in `apps/companion/src/protocol.ts`. The v1 transport uses authenticated connect/poll/heartbeat/authorize/events/revoke HTTP endpoints. The earlier candidate endpoints in section 21 remain a dashboard/backend design; use the companion protocol document for the implemented wire format before extracting a shared package.
 - `npm run verify` passed **112 tests** (the original 97 plus 15 companion tests) and every workspace typecheck. The Swift helper compiled and the web production build passed. A live paired request opened the bundled TXT document, observed in TextEdit; denial and Ctrl+C cancellation reached the relay. Test credentials were revoked and removed afterward.
-- `succeeded / open_dispatched` means macOS accepted the file-open request. The smoke test separately observed its visible window. The prototype does not return screen images or prove visibility automatically.
+- `succeeded / open_dispatched` means macOS accepted the file-open request. The smoke test separately observed its visible window. The relay prototype does not return screen images or prove visibility automatically; local snapshots use the separate native GUI.
 - The native helper is now packaged as `Hablabla Companion.app` with bundle ID `com.hablabla.companion`, installed by `companion:install` at `~/Applications/Hablabla Companion.app`. The CLI uses its bundled executable. Its setup window reports real Screen Recording/Accessibility status, refreshes automatically, and offers explicit request/Settings controls; pairing and approval remain in Terminal.
 - Packaging checks passed: 113 repository tests/typechecks, three bundle tests, installed-app identity/signature, Keychain round-trip, and an approved live document-open request. The local build uses ad-hoc signing; certificate signing can be selected explicitly with `HABLABLA_SIGNING_IDENTITY`. Ad-hoc rebuilds do not guarantee retained macOS permission grants.
 - Setup verification: all 113 repository tests/typechecks and three bundle tests passed again. The installed window was visually/accessibility inspected; both checks initially reported **Not granted**, and Accessibility updated to **Granted** during user interaction. Screen Recording grant/relaunch and signing persistence remain unverified. No capture or automated permission grants were performed.
-- Capture/streaming, keyboard/mouse control, window management, full menu-bar connection/approval controls, voice, server-side AI, public relay authentication/deployment, and `/devices` are still unimplemented. Local meeting-AI verification remains paused.
+- Local capture UI is implemented in `apps/companion/native/CaptureWindow.swift`: macOS system picker, one selected window/display, explicit Capture Once, in-memory preview, actual dimensions/timestamps, cancellation/clear/timeout handling. macOS 14+ is required for capture (26 uses the new screenshot API). Nothing is uploaded or added to the relay contract.
+- Final local-capture verification: 113 repository tests/typechecks and three bundle tests passed. Real window (2560 × 1513) and display (2560 × 1665) images were visually verified on macOS 26, plus clear and picker cancellation. The old enabled TCC entry was refreshed with user approval; Screen Recording now reports Granted in the installed build. macOS 14–15 capture, forced timeouts, in-flight cancellation races, and certificate-based permission persistence remain unverified.
+- Streaming, keyboard/mouse control, window management, full menu-bar connection/approval controls, voice, server-side AI, public relay authentication/deployment, and `/devices` are still unimplemented. Local meeting-AI verification remains paused.
 
 
 ## 1. Meeting-workspace summary
@@ -642,7 +644,7 @@ The relay should be a separate long-running service for the prototype, rather th
 
 ## 20. Companion prototype and access scope
 
-The implemented prototype is a Terminal-launched TypeScript/Node process with a Swift macOS adapter. It supports pairing and `open_resource`, plus a native setup window for actual GUI-process permission status. The menu-bar app does not yet host connection or approval controls; later capture/control stages below remain planned.
+The implemented prototype is a Terminal-launched TypeScript/Node process with a Swift macOS adapter. It supports pairing and `open_resource`, plus a native setup window for actual GUI-process permission status. The menu-bar app does not yet host connection or approval controls; local capture is available on macOS 14+, while streaming/control stages below remain planned.
 
 | Stage | Deliverable | Boundary |
 | --- | --- | --- |
@@ -658,7 +660,7 @@ For multiple windows, the initial device viewer shows **one selected Mac display
 
 A later WebRTC stream is a proposed media transport, with authenticated signaling through the relay and a separate scoped control channel. Until a transport is implemented and tested, use a still capture and label its timestamp; do not present stale frames as a live stream.
 
-### Next companion milestone: one capture
+### Local capture implemented; next milestone is dashboard integration
 
 The app packaging is implemented: fixed bundle ID `com.hablabla.companion`,
 user install path, signature verification, and a setup/About/Quit menu. The
@@ -668,15 +670,23 @@ CLI invokes its bundled executable with `--stdio` for Keychain and
 two-second visible-window timer, and a manual refresh button. Requests happen
 only through explicit user buttons; their return does not imply access. A false
 check is shown as **Not granted**, without guessing denied versus never requested.
-Permission status is not exposed through the relay or Terminal RPC. Screen
-capture remains the next implementation step.
+Permission status and snapshots are not exposed through the relay or Terminal
+RPC. A separate native capture window uses the system picker and screenshot API,
+shows one still image with pixel dimensions and request/receive timestamps, and
+discards it on Clear or close. Images stay in memory; no saving/upload is enabled.
+Capture uses one explicit button press after each selection, releases the source
+after completion, ignores late results, and reports failures without broadening
+the selected target. It requires macOS 14+ and caps image dimensions at 2560 px.
 The local build is ad-hoc signed; retaining grants across changed builds needs
 a compatible signing identity and verification. See the companion README for
-the explicit certificate-signing option and launch-context limitation.
+the explicit certificate-signing option, launch-context limitation, and tested
+recovery for an enabled but stale Settings grant. The macOS TCC log confirmed a
+code-requirement mismatch after an ad-hoc rebuild; resetting only this app’s
+ScreenCapture entry and granting the installed build restored its access.
 
-The setup separates screen viewing from control. Next, use screen access
-for one user-selected display/window, then add Accessibility-backed window/input
-operations as a later capability. Permission status must come from the companion
+The setup separates screen viewing from control. Next, agree on an authenticated
+runner-to-GUI bridge and dashboard capture contract, with explicit image-sharing
+consent. Accessibility-backed window/input operations remain a later capability. Permission status must come from the companion
 process, not from the dashboard or the development tool. Permissions enabled for
 Codex Computer Use do not establish permission for the shipped companion.
 

@@ -79,4 +79,4 @@ The companion persists the command digest before approval, and the execution cla
 
 ## Future capabilities
 
-Capture, stream signaling, remote input, AI planning, and voice are not part of this implemented schema. Add new versioned action schemas and local permission checks before advertising those capabilities. A model or dashboard must never dispatch arbitrary code through `open_resource`.
+The native GUI now supports local single-window/display snapshots in memory. This does not add a relay capability or RPC method. Remote capture, stream signaling, remote input, AI planning, and voice are not part of this implemented schema. Add new versioned action schemas and local permission checks before advertising those capabilities. A model or dashboard must never dispatch arbitrary code through `open_resource`.
