@@ -76,10 +76,20 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         controller.onOpenDashboard = { [weak self] in self?.showDashboard() }
         return controller
     }()
+    private lazy var windowControl: WindowControlController = {
+        let controller = WindowControlController()
+        controller.share = { [weak self] id, catalog, done in self?.dashboardWindow.shareWindows(requestId: id, catalog: catalog, completion: done) }
+        controller.authorize = { [weak self] request, done in self?.dashboardWindow.authorize(request, completion: done) }
+        controller.finish = { [weak self] id, result in self?.dashboardWindow.result(requestId: id, value: result) }
+        return controller
+    }()
     private var captureWindow: NSWindowController?
     private lazy var dashboardWindow: DashboardWindowController = {
         let controller = DashboardWindowController()
+        controller.onDisconnect = { [weak self] in self?.windowControl.cancel(clearCatalog: true) }
+        controller.onControlRequest = { [weak self] request in self?.windowControl.begin(request) }
         controller.onCancelRequest = { [weak self] in
+            self?.windowControl.cancel()
             if #available(macOS 14.0, *) { (self?.captureWindow as? CaptureWindowController)?.cancelDashboardRequest() }
         }
         controller.onRequest = { [weak self, weak controller] request in
@@ -106,7 +116,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         let title = NSMenuItem(title: "Hablabla Companion", action: nil, keyEquivalent: "")
         title.isEnabled = false
         menu.addItem(title)
-        menu.addItem(NSMenuItem(title: "Local snapshots · Approved sharing", action: nil, keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Snapshots & controls · Local approval", action: nil, keyEquivalent: ""))
         menu.addItem(.separator())
         let setup = NSMenuItem(title: "Setup & Permissions…", action: #selector(showSetup), keyEquivalent: ",")
         setup.target = self
@@ -152,7 +162,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Hablabla Companion"
-        alert.informativeText = "Native helper for approved document opening and snapshots.\n\nLocal Dashboard pairs this app with a browser on this Mac. Each snapshot requires source selection, capture, and explicit sharing. Closing the connection window stops sharing.\n\nThe separate Terminal process still handles document opening. Quitting this helper does not stop that process. Streaming and remote input are not enabled."
+        alert.informativeText = "Native helper for approved document opening and snapshots.\n\nLocal Dashboard pairs this app with a browser on this Mac. Each snapshot requires source selection, capture, and explicit sharing. Closing the connection window stops sharing.\n\nThe separate Terminal process still handles document opening. Quitting this helper does not stop that process. Window lists and individual mouse/keyboard actions use the local dashboard and require approval. Continuous streaming is not enabled."
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }

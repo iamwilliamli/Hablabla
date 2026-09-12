@@ -1,4 +1,4 @@
-# Same-Mac dashboard — implemented local protocol v1
+# Same-Mac dashboard — local protocol v2 — snapshots and approved controls
 
 This is a separate, deliberately local connection between the **running native
 GUI** and the existing Next.js server. It does not import the demo relay or change
@@ -19,7 +19,7 @@ the Terminal `open_resource` protocol. No runner-to-GUI IPC was added.
 The browser displays the actual native permission checks, online state, selected
 source, capture time, and pixel dimensions. The capture API remains authoritative:
 the global Screen Recording check does not replace the picker’s scoped grant.
-Accessibility is not used by this snapshot feature.
+Accessibility is not used by snapshots. The separate controls below require the running GUI to report Accessibility granted.
 
 **Stop:** Disconnect & Clear in either surface revokes the connection. Closing
 the native connection window also disconnects. Browser Clear cancels a pending
@@ -28,6 +28,50 @@ expires one minute after receipt. The app never starts a stream or sends an
 image to a model. After the native app/web server restarts, disconnect a stale
 browser pairing and pair again. Pairings are not stored in Keychain in this mode.
 
+## Window and input controls
+
+After pairing, choose **Request window list**. The native **Approve Control**
+window lists up to 50 Accessibility windows from up to 40 regular apps. Select
+which app names and titles to share, then click **Share Selected Windows**.
+Nothing is selected by default. Only that selection reaches the browser.
+
+Choose a shared window and an action in **Windows & controls**:
+
+- Bring the window forward, restoring it if minimized.
+- Move, click, double-click, right-click, or drag within the window.
+- Scroll horizontally or vertically (up to 600 pixels per axis).
+- Type up to 500 characters without control characters, or press a supported
+  key with Command, Shift, Option, and/or Control. Return is a separate action.
+
+The app displays the exact target and input; **Approve Once** admits one attempt.
+**Decline**, browser Cancel, or closing the approval window ends pending approval.
+The native app rechecks Accessibility, the retained AX window, its unchanged
+full title, expiry, broker authorization, and actual focused window before input.
+It refuses an unverified target instead of switching to another window.
+
+Pointer coordinates are percentages of the window's current Accessibility bounds,
+from its top-left corner. These are window coordinates, **not snapshot pixels**.
+The app hit-tests points against the approved window before mouse delivery.
+Dragging stays inside the selected window; cross-window drag is not supported.
+Mouse gestures use the macOS HID event path and are bounded down/up sequences;
+keyboard events target the approved process. System Secure Event Input blocks
+input. Secure/login/system UI is not bypassed. Ordinary concurrent desktop
+interaction can still change an app between a check and event delivery; this is
+an interactive prototype, not OS-level exclusive remote control.
+
+A catalog expires within three minutes and is removed on new listing, lost peer
+heartbeat, permission revocation, or disconnect. Closed windows and changed titles
+require a fresh selection. Native AX handles, PIDs, content trees and document
+contents are never sent as the catalog. Opaque window UUIDs work only within
+that session's selected catalog. Text exists only in the current in-memory request
+and approval view; terminal status clears it. There is no input history/log.
+
+Results distinguish **succeeded** (native focused-window verification),
+**dispatched** (input sent, receiving app outcome unverified), and **unknown**
+(action may have happened). Cancellation after the execution claim cannot undo
+an action. Inspect the Mac before retrying an uncertain operation. A fresh
+snapshot still requires the existing explicit capture/share flow.
+
 ## Contract and ownership
 
 - Browser: `apps/web/src/app/devices/` and `components/devices/dashboard.tsx`.
@@ -35,6 +79,8 @@ browser pairing and pair again. Pairings are not stored in Keychain in this mode
 - TypeScript schemas: `apps/web/src/lib/devices-protocol.ts`.
 - Native transport/setup: `apps/companion/native/DashboardWindow.swift`.
 - Native picker/preview/explicit sharing: `native/CaptureWindow.swift`.
+- Native Accessibility approval/execution: `native/WindowControl.swift`.
+- Browser controls: `components/devices/control-panel.tsx`.
 
 All requests use the fixed origin `http://127.0.0.1:3100`; the server scripts bind
 to `127.0.0.1`. Host must match exactly. Browser mutations require the matching
@@ -49,7 +95,8 @@ public bind, tunnel, or remote deployment without a new authenticated relay desi
 ```ts
 {
   device: null | { id, name, online, permissions: { screenRecording, accessibility }, lastSeen },
-  request: null | { id, status, expiresAt, imageExpiresAt, metadata }
+  catalog: null | { id, expiresAt, windows: [{ id, app, title, minimized }] },
+  request: null | { id, kind, status, expiresAt, imageExpiresAt, metadata, catalogId?, windowId?, action? }
 }
 ```
 
@@ -59,13 +106,15 @@ Browser `POST /api/devices` accepts one strict JSON operation:
 | --- | --- | --- |
 | `pairing` | none | `{code, expiresAt}`; replaces any earlier challenge |
 | `snapshot` | `deviceId`, `requestId` UUIDs | Current state; one pending request per device |
-| `clear` | none | Cancels pending request or clears media |
+| `list_windows` | `deviceId`, `requestId` | Requests local review of window titles |
+| `control` | `deviceId`, `requestId`, `catalogId`, `windowId`, `action` | Requests one locally approved action |
+| `clear` | none | Cancels pending request or clears media; executing actions become unknown |
 | `disconnect` | none | Revokes device, challenge and media |
 
 The 128-bit pairing code is single-use and expires in two minutes. The native
 app sends JSON to `POST /api/devices?native=1`, with no browser Origin/Fetch
-Metadata headers. Pairing accepts `{operation:"pair", code, name, permissions}`
-and returns `{token, deviceId}`. Later native calls use `Authorization: Bearer`
+Metadata headers. Pairing accepts `{operation:"pair", protocolVersion:2, code, name, permissions}`
+and returns `{token, deviceId, protocolVersion:2}`. Version 1 companions are rejected; update both app and web server and re-pair. This prevents older snapshot-only apps from misreading a control request. Later native calls use `Authorization: Bearer`
 with the 256-bit device token. Secrets are held in memory; the server stores
 hashes. Browser responses never expose device tokens. Native redirects are
 rejected and URLSession uses ephemeral storage, no cookies/cache/credentials,
@@ -73,9 +122,11 @@ an eight-second deadline and a 16 KiB response limit.
 
 | Native operation | Additional fields | Result |
 | --- | --- | --- |
-| `poll` | `permissions` | `{request: null \| {id, expiresAt}}` |
+| `poll` | `permissions` | `{request: null \| {id, kind, expiresAt, catalogId?, windowId?, action?}}` |
 | `share` | `requestId`, `metadata`, `jpeg` base64 | `{}` after validated receipt |
-| `result` | `requestId`, `result: "denied" \| "failed"` | `{}` |
+| `windows` | `requestId`, selected `catalog` | Stores approved titles for up to three minutes |
+| `authorize` | `requestId`, `catalogId`, `windowId` | `{allowed:true}` for one execution claim only |
+| `result` | `requestId`, `result: "denied" \| "failed" \| "succeeded" \| "dispatched" \| "unknown"` | `{}` |
 | `disconnect` | none | Revokes the connection |
 
 Metadata is `{target, targetId, kind:"window"|"display", width, height, scale,
@@ -112,6 +163,24 @@ terminal replies can be acknowledged while their result exists; changed, late,
 cross-device, cleared, or expired results are rejected. Restart invalidates every
 token, so no durable snapshot journal or retry after restart is needed.
 
+Action shapes are strict, defined in `devices-protocol.ts`:
+
+```ts
+{ kind: "activate_window" }
+{ kind: "pointer", mode: "move"|"click"|"double_click"|"right_click"|"drag", point: {x,y}, end?: {x,y} }
+{ kind: "scroll", point: {x,y}, dx, dy }
+{ kind: "type_text", text }
+{ kind: "key", key, modifiers: ["command"|"shift"|"option"|"control"] }
+```
+
+`x/y` are finite 0–1 values; `end` is required only for drag. There are no raw
+shell, PID, AX selector, held-key, or arbitrary tool operations. Only one request
+is pending/executing. Request IDs bind the entire command digest; changed details
+under a reused ID are rejected. A second `authorize` is rejected even if the
+first reply was lost. The native app retains admitted IDs until disconnect and
+never replays input. Lost authorization/result replies or peer loss after claim
+produce uncertainty rather than automatic retry. Restart revokes credentials.
+
 ## Verification
 
 On September 12, 2026, the 12 broker tests cover browser/device isolation,
@@ -134,3 +203,50 @@ Legacy macOS screenshot paths and internet access are not verified by this run.
 Native API references: [ephemeral URLSession](https://developer.apple.com/documentation/foundation/urlsessionconfiguration),
 [redirect delegate](https://developer.apple.com/documentation/foundation/urlsessiontaskdelegate/urlsession(_:task:willperformhttpredirection:newrequest:completionhandler:)),
 [in-memory image encoding](https://developer.apple.com/documentation/appkit/nsbitmapimagerep/representation(using:properties:)).
+
+
+Accessibility implementation checks on September 12, 2026: all **144 repository
+tests/typechecks**, **three bundle checks**, and the production web build passed.
+Ten additional broker tests cover version negotiation, selected catalogs,
+permission gating/revocation, one-time execution claims, cancellation before/after
+claim, request digest binding, cross-device isolation, strict input validation,
+input outcome semantics, and disconnect uncertainty. Native GUI control remains
+unavailable over the Terminal `--stdio` RPC. See the latest live check note below.
+
+Final live Accessibility checks on macOS 26.6.2:
+
+- The installed GUI reported **Screen Recording Granted** and **Accessibility
+  Granted** after user-authorized, app-scoped refreshes for changed ad-hoc builds.
+- Selected-title sharing and expiration were observed. An empty selection shared
+  no titles; a selected TextEdit window appeared with an opaque catalog identity.
+- Normal window activation returned verified focus. Unicode text was observed
+  exactly in TextEdit; Command-A visibly selected it. Click cleared selection,
+  double-click selected a word, right-click opened its menu, and drag selected
+  the phrase. Scrolling moved the observed scrollbar from 0 to about 0.655.
+- Pointer movement returned a successful native dispatch; its precise final
+  global cursor position was not independently measured.
+- Native Decline and browser Cancel removed the pending input without typing
+  either test string. The native approval closed on cancellation.
+- Minimized windows were listed accurately and restored visibly. Focus was not
+  confirmed during the restore test, so the browser correctly showed **unknown**.
+  The final implementation checks focus for up to two seconds without repeating
+  activation. Treat minimized restore as partially verified, not a proven focus
+  success on every app. Concurrent desktop interaction may interrupt focus.
+- The final web control layout was inspected visually and through its DOM labels
+  at 1280 px, with no horizontal overflow. Mobile layout and VoiceOver narration
+  were not separately exercised in this control run.
+- OS execution used a temporary TextEdit document. No model calls or internet
+  computer-control transport were used. Snapshot compatibility passed the broker
+  tests; image capture was not repeated on this final control build. The prior
+  snapshot live check above belongs to the previous snapshot milestone.
+
+Not live-tested: macOS 13–15, multi-display/Spaces switching, protected input,
+app termination/closed-window races, or interruption midway through a gesture.
+The broker tests cover permission revocation and expiry; actual TCC revocation
+mid-input has not been exercised. These are discrete approvals, not a persistent
+remote-desktop session or an AI computer-use loop.
+
+Apple API references: [AX attributes](https://developer.apple.com/documentation/applicationservices/1462085-axuielementcopyattributevalue),
+[process-targeted keyboard events](https://developer.apple.com/documentation/coregraphics/cgevent/posttopid(_:)),
+[mouse event delivery](https://developer.apple.com/documentation/coregraphics/cgevent/post(tap:)),
+[cursor positioning](https://developer.apple.com/documentation/coregraphics/cgwarpmousecursorposition(_:)).

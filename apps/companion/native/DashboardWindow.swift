@@ -53,6 +53,8 @@ private final class LocalDashboardHTTP: NSObject, URLSessionDataDelegate {
 
 final class DashboardWindowController: NSWindowController, NSWindowDelegate {
     var onRequest: ((DashboardSnapshotRequest) -> Void)?
+    var onControlRequest: ((DashboardControlRequest) -> Void)?
+    var onDisconnect: (() -> Void)?
     var onCancelRequest: (() -> Void)?
     private let code = NSTextField(string: "")
     private let status = NSTextField(wrappingLabelWithString: "Not connected. Open the dashboard and create a pairing code.")
@@ -75,7 +77,7 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate {
         guard let content = window.contentView else { return }
         let title = NSTextField(labelWithString: "Connect your local dashboard")
         title.font = .systemFont(ofSize: 24, weight: .bold)
-        let intro = NSTextField(wrappingLabelWithString: "Open http://127.0.0.1:3100/devices on this Mac. Create a pairing code, then paste it here. Pairing lets that browser request a snapshot; you choose the source and approve each image before sharing.")
+        let intro = NSTextField(wrappingLabelWithString: "Open http://127.0.0.1:3100/devices on this Mac. Create a pairing code, then paste it here. Pairing lets that browser request snapshots, window lists, and mouse or keyboard actions. You review sharing and approve every action locally.")
         let codeLabel = NSTextField(labelWithString: "Pairing code")
         code.placeholderString = "Paste the 32-character code"
         code.setAccessibilityLabel("Dashboard pairing code")
@@ -131,16 +133,16 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate {
         pairButton.isEnabled = false
         stopButton.isEnabled = true
         status.stringValue = "Connecting to the local dashboard…"
-        send(["operation": "pair", "code": value, "name": String((Host.current().localizedName ?? "My Mac").prefix(100)), "permissions": permissions()], token: nil) { [weak self] result in
+        send(["operation": "pair", "protocolVersion": 2, "code": value, "name": String((Host.current().localizedName ?? "My Mac").prefix(100)), "permissions": permissions()], token: nil) { [weak self] result in
             guard let self else { return }
-            guard let token = result?["token"] as? String, token.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil,
+            guard result?["protocolVersion"] as? Int == 2, let token = result?["token"] as? String, token.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil,
                   let deviceId = result?["deviceId"] as? String, UUID(uuidString: deviceId) != nil else {
                 self.disconnect(message: "Could not pair. Check the web server is running and create a fresh code."); return
             }
             self.token = token
             self.code.stringValue = ""
             self.code.isEnabled = false
-            self.status.stringValue = "Connected to your local browser. Waiting for a snapshot request."
+            self.status.stringValue = "Connected to your local browser. Waiting for a request."
             self.timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.poll() }
             self.poll()
         }
@@ -164,12 +166,21 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate {
                     self.onCancelRequest?()
                     let request = DashboardSnapshotRequest(id: id, expiresAt: date)
                     self.currentRequest = request
-                    self.status.stringValue = "Snapshot requested. Choose a source in Capture, then review and share or decline."
-                    self.onRequest?(request)
+                    guard let kind = pending["kind"] as? String, ["snapshot", "list_windows", "control"].contains(kind) else {
+                        self.disconnect(message: "Unsupported request. Update both the companion and web server."); return
+                    }
+                    if kind == "snapshot" {
+                        self.status.stringValue = "Snapshot requested. Choose a source in Capture, then review and share or decline."
+                        self.onRequest?(request)
+                    } else {
+                        self.status.stringValue = "Review the request in Approve Control. Each action requires your approval."
+                        self.onControlRequest?(DashboardControlRequest(id: id, expiresAt: date, kind: kind,
+                            catalogId: pending["catalogId"] as? String, windowId: pending["windowId"] as? String, action: pending["action"] as? [String: Any]))
+                    }
                 }
             } else if result["request"] is NSNull {
                 if self.currentRequest != nil { self.onCancelRequest?(); self.currentRequest = nil }
-                let message = "Connected to your local browser. Waiting for a snapshot request."
+                let message = "Connected to your local browser. Waiting for a request."
                 if self.status.stringValue != message { self.status.stringValue = message }
             } else { self.disconnect(message: "Unexpected reply. Pair again to reconnect.") }
         }
@@ -185,12 +196,21 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate {
             if result == nil { self?.disconnect(message: "Sharing was not confirmed. The preview was discarded. Pair again to reconnect.") }
         }
     }
-    func decline(requestId: String) {
+    func shareWindows(requestId: String, catalog: [String: Any], completion: @escaping (Bool) -> Void) {
+        guard let token, currentRequest?.id == requestId else { completion(false); return }
+        send(["operation": "windows", "requestId": requestId, "catalog": catalog], token: token) { completion($0 != nil) }
+    }
+    func authorize(_ request: DashboardControlRequest, completion: @escaping (Bool) -> Void) {
+        guard let token, currentRequest?.id == request.id, request.expiresAt > Date(), let catalog = request.catalogId, let window = request.windowId else { completion(false); return }
+        send(["operation": "authorize", "requestId": request.id, "catalogId": catalog, "windowId": window], token: token) { completion($0?["allowed"] as? Bool == true) }
+    }
+    func result(requestId: String, value: String) {
         guard let token, currentRequest?.id == requestId else { return }
-        send(["operation": "result", "requestId": requestId, "result": "denied"], token: token) { [weak self] result in
-            if result == nil { self?.disconnect(message: "Connection lost. Pair again to reconnect.") }
+        send(["operation": "result", "requestId": requestId, "result": value], token: token) { [weak self] result in
+            if result == nil { self?.disconnect(message: "Result was not confirmed. An action already sent may have happened. Pair again to reconnect.") }
         }
     }
+    func decline(requestId: String) { result(requestId: requestId, value: "denied") }
     @objc private func stop() { disconnect(message: "Disconnected. Pending images were discarded.") }
     func disconnect(message: String = "Disconnected.") {
         let oldToken = token
@@ -199,7 +219,7 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate {
         for connection in connections.values { connection.cancel() }
         connections.removeAll()
         token = nil; currentRequest = nil; polling = false
-        onCancelRequest?()
+        onCancelRequest?(); onDisconnect?()
         code.stringValue = ""; code.isEnabled = true
         pairButton.isEnabled = true; stopButton.isEnabled = false
         status.stringValue = message

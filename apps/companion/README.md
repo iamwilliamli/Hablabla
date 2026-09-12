@@ -4,7 +4,7 @@ A Terminal-launched macOS companion for the first device-control prototype. It p
 
 The user assigned this component on September 12, 2026. Its native implementation lives in `apps/companion/`. The same-Mac snapshot dashboard now lives at `apps/web/src/app/devices/`, with a separate local broker at `/api/devices`. The meeting UI and deferred local-model verification are unchanged.
 
-## Share a snapshot with the local dashboard
+## Use the local dashboard
 
 The native app now pairs directly with the browser on this Mac. Start `npm run dev:web`, open **http://127.0.0.1:3100/devices**, and click **Local Dashboard…** in the companion Setup window. Create a code in the browser and paste it into the app. Each snapshot requires source selection, capture, preview, and **Share with Dashboard** on the Mac. Images expire after one minute. See [LOCAL_DASHBOARD.md](LOCAL_DASHBOARD.md) for the complete walkthrough, contract, limits, and tests.
 
@@ -56,6 +56,18 @@ In Terminal 2, review the exact document and type `approve`. Enter or any other 
 **Stop:** press Ctrl+C in the companion, including during approval. `cancel <command-id>` in the relay also cancels pending approval. Actions already dispatched cannot be undone. Type `quit` to stop the relay.
 
 **Unpair:** stop the companion, then run `npm run companion -- unpair`. This revokes the relay credential and removes the Keychain item. If the relay is unreachable, local credentials are removed and the command tells you to revoke at the relay too. The demo relay keeps all state in memory; restarting it requires pairing again. Use `unpair` before re-pairing with that new instance.
+
+## Approved window and input controls
+
+The local dashboard also supports selected window lists, switching/restoring a
+window, mouse movement/clicks/dragging, scrolling, text entry, and key shortcuts.
+Use **Request window list**, select windows in the native review, then choose a
+target/action on the page. Every input requires **Approve Once** on the Mac.
+The running GUI must report Accessibility granted. Lists expire after three
+minutes, and stale windows require a fresh selection. Controls use local
+protocol **v2**: rebuild/install the app and update the web server together,
+then re-pair. See [LOCAL_DASHBOARD.md](LOCAL_DASHBOARD.md) for limits, input
+coordinates, cancellation semantics, and verification.
 
 ## Packaged native app
 
@@ -110,7 +122,7 @@ identity changes. This build is not notarized or packaged for public distributio
 
 Packaging does not grant Screen Recording or Accessibility access. The setup
 window checks both permissions in the running background app. Capture now runs
-in that same app; future control operations must verify their own authorization, including
+in that same app; control operations verify their own authorization, including
 its launch path; a Terminal-launched `--stdio` process must not be assumed to inherit
 grants observed in a Finder-launched app or in Codex Computer Use. The background
 app hosts the local capture UI; integrating
@@ -230,11 +242,11 @@ The concrete companion contract is in [PROTOCOL.md](PROTOCOL.md), with Zod schem
 
 The same-Mac `/devices` snapshot dashboard is implemented using [its own local contract](LOCAL_DASHBOARD.md). The provider bypasses meeting/model initialization on that route. `apps/relay/`, remote account authentication and `packages/device-protocol/` remain future integration work; do not import the Terminal fixture into production.
 
-Implemented relay capability: `open_resource`. Native GUI features include packaging, permission setup, and local single-window/display snapshots. The menu-bar app now has a separate same-Mac snapshot connection and explicit sharing approval. Streaming, remote keyboard/mouse, window control, voice input, and server-side AI planning remain future work. The WebGPU meeting model remains explicitly out of scope.
+Implemented relay capability: `open_resource`. Native GUI features include packaging, permission setup, and local single-window/display snapshots. The menu-bar app now has a separate same-Mac snapshot connection and explicit sharing approval. Approved window and input controls now use the same-Mac dashboard. Streaming, internet keyboard/mouse, voice input, and server-side AI planning remain future work. The WebGPU meeting model remains explicitly out of scope.
 
 ## Next milestone: remote device access
 
-The same-Mac dashboard snapshot flow is implemented. Next work needs an authenticated remote relay, account/device ownership, encrypted transport and explicit destination consent before images leave the Mac. Document opening still uses the Terminal protocol; streaming/input and GUI integration of that runner remain separate milestones. Keep this adapter separate from William’s speech worker and keep live meeting AI verification paused.
+The same-Mac dashboard snapshot flow is implemented. Next work needs an authenticated remote relay, account/device ownership, encrypted transport and explicit destination consent before images leave the Mac. Document opening still uses the Terminal protocol; streaming, internet input, and GUI integration of that runner remain separate milestones. Keep this adapter separate from William’s speech worker and keep live meeting AI verification paused.
 
 ## Verification
 
@@ -317,3 +329,15 @@ automatic one-minute image removal and native Disconnect were live-tested.
 The current installed build reports Screen Recording Granted after an approved
 app-scoped refresh. See [LOCAL_DASHBOARD.md](LOCAL_DASHBOARD.md) for the contract
 and remaining limits. The meeting model was not run.
+
+
+Accessibility dashboard extension: the implementation uses local protocol v2,
+retained native AX window handles, one-time broker authorization and separate
+local approval for each input. The initial verification passed 144 repository
+tests/typechecks, three bundle checks, and the web production build. Actual
+window switching and Unicode typing were observed in an empty TextEdit document.
+Further live checks are recorded in [LOCAL_DASHBOARD.md](LOCAL_DASHBOARD.md).
+After an ad-hoc rebuild, a stale Accessibility grant may also need an app-scoped
+refresh with `tccutil reset Accessibility com.hablabla.companion`, followed by
+an explicit request and grant in Settings. Resetting clears the old grant; it
+does not grant access. Finish building before refreshing either permission.

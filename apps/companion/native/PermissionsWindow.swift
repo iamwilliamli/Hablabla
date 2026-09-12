@@ -85,7 +85,7 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
             description: "Allows reading screen content. Open Capture to choose a window or display and preview one snapshot locally.",
             status: screenStatus, request: screenRequest, settingsAction: #selector(openScreenSettings))
         let accessibility = section("Accessibility",
-            description: "Allows controlling apps for future approved actions. This version does not send mouse or keyboard input.",
+            description: "Allows sharing selected window titles, switching windows, and approved mouse or keyboard actions from your local dashboard.",
             status: accessibilityStatus, request: accessibilityRequest, settingsAction: #selector(openAccessibilitySettings))
         let note = label("After changing access in System Settings, return here to check again. Screen Recording may require quitting and reopening this app. “Not granted” means macOS currently reports no access; it does not tell us whether you declined or have never been asked.")
         note.textColor = .secondaryLabelColor
@@ -100,7 +100,7 @@ final class PermissionsWindowController: NSWindowController, NSWindowDelegate {
         let footer = NSStackView(views: [refresh, capture, dashboard])
         footer.orientation = .horizontal
         footer.spacing = 12
-        let identity = label("App: \(Bundle.main.bundleIdentifier ?? "Unknown")\nDocument approvals continue in Terminal. Use Local Dashboard for approved snapshot sharing.", size: 12)
+        let identity = label("App: \(Bundle.main.bundleIdentifier ?? "Unknown")\nDocument approvals continue in Terminal. Use Local Dashboard for approved snapshots and controls.", size: 12)
         identity.textColor = .secondaryLabelColor
         identity.isSelectable = true
         let stack = NSStackView(views: [title, intro, screen, accessibility, note, feedback, footer, checkedAt, identity])

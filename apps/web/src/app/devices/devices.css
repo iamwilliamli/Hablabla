@@ -67,3 +67,21 @@
 .dv-skip:focus { top: 8px; }
 @media(max-width:900px) { .dv-grid { grid-template-columns: 270px minmax(0,1fr); gap: 18px; } .dv-main { padding: 32px 24px; } .dv-mode { display: none; } .dv-canvas { min-height: 330px; aspect-ratio: auto; } .dv-card { padding: 20px; } }
 @media(max-width:700px) { .dv-grid { grid-template-columns: 1fr; } .dv-sidebar { grid-template-columns: 1fr; } .dv-note { display: none; } .dv-nav { gap: 14px; padding: 17px 20px; } .dv-nav > .dv-pill { display: none; } .dv-nav > a:nth-child(2) { font-size: 11px; } .dv-main { padding: 29px 17px; } .dv-heading { margin-bottom: 25px; } .dv-viewer-heading,.dv-viewer-footer { padding: 20px; } .dv-canvas { padding: 12px; } }
+.dv-control { margin-top: 26px; }
+.dv-control-heading { display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+.dv-control-heading .dv-eyebrow { margin-bottom: 6px; }
+.dv-control > button { width: auto; }
+.dv-control-form { display: grid; gap: 20px; max-width: 820px; margin: 20px 0; }
+.dv-control-form label { display: grid; gap: 8px; font-size: 13px; font-weight: 600; min-width: 0; }
+.dv-control-form :is(input,select) { background: #fffef9; color: #213d35; border: 1px solid #aebdac; border-radius: 8px; min-height: 44px; padding: 10px 12px; max-width: 100%; min-width: 0; width: 100%; }
+.dv-page :is(select,textarea):focus-visible { outline: 3px solid #377259; outline-offset: 4px; }
+.dv-control-form label span,.dv-control-form fieldset p { font-size: 12px; font-weight: 400; color: #50614e; }
+.dv-control-form fieldset { padding: 16px; border: 1px solid #c8d1c2; border-radius: 10px; min-width: 0; }
+.dv-control-form legend { font-size: 13px; font-weight: 600; padding: 0 7px; }
+.dv-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.dv-modifiers { display: flex; flex-wrap: wrap; gap: 12px 22px; }
+.dv-modifiers label { display: flex; align-items: center; min-height: 44px; }
+.dv-modifiers input { width: 20px; min-height: 20px; accent-color: #245545; }
+.dv-control-status { border-left: 3px solid #557753; padding: 2px 16px 12px; margin: 20px 0; }
+.dv-control-status p { margin: 10px 0; }
+@media(max-width:700px) { .dv-control { padding: 20px; } .dv-control-heading .dv-pill { display: none; } }

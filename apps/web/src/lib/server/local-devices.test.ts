@@ -17,7 +17,7 @@ function fixture() {
   const session = async () => (await request()).headers.get("set-cookie")!.split(";")[0];
   const pair = async (cookie: string) => {
     const { code } = await (await browser(cookie, { operation: "pairing" })).json();
-    const response = await native("", { operation: "pair", code, name: "Test Mac", permissions });
+    const response = await native("", { operation: "pair", protocolVersion: 2, code, name: "Test Mac", permissions });
     assert.equal(response.status, 200);
     return { ...await response.json(), code } as { token: string; deviceId: string; code: string };
   };
@@ -58,13 +58,13 @@ test("local pairing binds the native token, GUI permissions, and image to the is
 test("pairing codes are expiring, single-use, and replaced by a fresh challenge", async () => {
   const f = fixture(), owner = await f.session();
   const p = await f.pair(owner);
-  assert.equal((await f.native("", { operation: "pair", code: p.code, name: "Replay", permissions })).status, 403);
+  assert.equal((await f.native("", { operation: "pair", protocolVersion: 2, code: p.code, name: "Replay", permissions })).status, 403);
   await f.browser(owner, { operation: "disconnect" });
   const first = await (await f.browser(owner, { operation: "pairing" })).json();
   const second = await (await f.browser(owner, { operation: "pairing" })).json();
-  assert.equal((await f.native("", { operation: "pair", code: first.code, name: "Old", permissions })).status, 403);
+  assert.equal((await f.native("", { operation: "pair", protocolVersion: 2, code: first.code, name: "Old", permissions })).status, 403);
   f.advance(120_001);
-  assert.equal((await f.native("", { operation: "pair", code: second.code, name: "Late", permissions })).status, 403);
+  assert.equal((await f.native("", { operation: "pair", protocolVersion: 2, code: second.code, name: "Late", permissions })).status, 403);
 });
 
 test("unknown cookies and native credentials do not establish ownership", async () => {
@@ -186,4 +186,145 @@ test("reject malformed images, metadata mismatch, old captures, oversized and ar
   ]) assert.equal((await f.native(p.token, body)).status, 400);
   assert.equal((await f.native(p.token, { ...share, jpeg: "a".repeat(2_820_000) })).status, 413);
   assert.equal((await (await f.browser(owner)).json()).request.status, "awaiting_approval");
+});
+
+async function controlFixture() {
+  const f = fixture(), cookie = await f.session(), p = await f.pair(cookie);
+  const access = { screenRecording: true, accessibility: true };
+  await f.native(p.token, { operation: "poll", permissions: access });
+  const requestId = randomUUID(), catalogId = randomUUID(), windowId = randomUUID();
+  assert.equal((await f.browser(cookie, { operation: "list_windows", requestId, deviceId: p.deviceId })).status, 200);
+  const catalog = { id: catalogId, expiresAt: "2026-09-12T20:02:55.000Z", windows: [{ id: windowId, app: "TextEdit", title: "Demo", minimized: false }] };
+  assert.equal((await f.native(p.token, { operation: "windows", requestId, catalog })).status, 200);
+  const command = { operation: "control", requestId: randomUUID(), deviceId: p.deviceId, catalogId, windowId, action: { kind: "activate_window" } };
+  const authorize = { operation: "authorize", requestId: command.requestId, catalogId, windowId };
+  return { ...f, cookie, p, catalog, command, authorize, access };
+}
+
+test("v1 companions cannot pair with the control-capable broker", async () => {
+  const f = fixture(), cookie = await f.session();
+  const { code } = await (await f.browser(cookie, { operation: "pairing" })).json();
+  assert.equal((await f.native("", { operation: "pair", code, name: "Old app", permissions })).status, 400);
+});
+
+test("window listing requires actual AX access and remains private until native sharing", async () => {
+  const f = fixture(), cookie = await f.session(), p = await f.pair(cookie);
+  const command = { operation: "list_windows", requestId: randomUUID(), deviceId: p.deviceId };
+  assert.equal((await f.browser(cookie, command)).status, 409);
+  await f.native(p.token, { operation: "poll", permissions: { ...permissions, accessibility: true } });
+  assert.equal((await f.browser(cookie, command)).status, 200);
+  assert.equal((await (await f.browser(cookie)).json()).catalog, null);
+  assert.equal((await f.native(p.token, f.share(command.requestId))).status, 409);
+  assert.equal((await f.native(p.token, { operation: "result", requestId: command.requestId, result: "denied" })).status, 200);
+  assert.equal((await (await f.browser(cookie)).json()).catalog, null);
+});
+
+test("window catalogs reject duplicate IDs, oversized titles, and excessive lifetimes", async () => {
+  const f = await controlFixture();
+  const requestId = randomUUID();
+  await f.browser(f.cookie, { operation: "list_windows", deviceId: f.p.deviceId, requestId });
+  for (const catalog of [
+    { ...f.catalog, windows: [f.catalog.windows[0], f.catalog.windows[0]] },
+    { ...f.catalog, expiresAt: "2026-09-12T22:00:00.000Z" },
+    { ...f.catalog, windows: [{ ...f.catalog.windows[0], title: "x".repeat(161) }] },
+  ]) assert.equal((await f.native(f.p.token, { operation: "windows", requestId, catalog })).status, 400);
+});
+
+test("a control executes only after a single claim bound to the exact selected window", async () => {
+  const f = await controlFixture();
+  assert.equal((await f.browser(f.cookie, f.command)).status, 200);
+  assert.equal((await f.native(f.p.token, { operation: "result", requestId: f.command.requestId, result: "succeeded" })).status, 409);
+  assert.equal((await f.native(f.p.token, { ...f.authorize, windowId: randomUUID() })).status, 409);
+  assert.equal((await f.native(f.p.token, f.authorize)).status, 200);
+  assert.equal((await f.native(f.p.token, f.authorize)).status, 409);
+  const poll = await (await f.native(f.p.token, { operation: "poll", permissions: f.access })).json();
+  assert.equal(poll.request.kind, "control");
+  assert.deepEqual(poll.request.action, f.command.action);
+  const result = { operation: "result", requestId: f.command.requestId, result: "succeeded" };
+  assert.equal((await f.native(f.p.token, result)).status, 200);
+  assert.equal((await f.native(f.p.token, result)).status, 200);
+  assert.equal((await (await f.native(f.p.token, { operation: "poll", permissions: f.access })).json()).request, null);
+});
+
+test("cancellation before claim prevents input, while cancellation after claim reports uncertainty", async () => {
+  const f = await controlFixture();
+  await f.browser(f.cookie, f.command);
+  await f.browser(f.cookie, { operation: "clear" });
+  assert.equal((await f.native(f.p.token, f.authorize)).status, 409);
+  assert.equal((await (await f.browser(f.cookie)).json()).request.status, "cancelled");
+  const requestId = randomUUID();
+  await f.browser(f.cookie, { ...f.command, requestId });
+  await f.native(f.p.token, { ...f.authorize, requestId });
+  await f.browser(f.cookie, { operation: "clear" });
+  assert.equal((await (await f.browser(f.cookie)).json()).request.status, "unknown");
+  assert.equal((await f.native(f.p.token, { ...f.authorize, requestId })).status, 409);
+  assert.equal((await f.native(f.p.token, { operation: "result", requestId, result: "succeeded" })).status, 409);
+});
+
+test("permission revocation clears targets and prevents pending control claims", async () => {
+  const f = await controlFixture();
+  await f.browser(f.cookie, f.command);
+  await f.native(f.p.token, { operation: "poll", permissions });
+  const state = await (await f.browser(f.cookie)).json();
+  assert.equal(state.catalog, null);
+  assert.equal(state.request.status, "failed");
+  assert.equal((await f.native(f.p.token, f.authorize)).status, 409);
+});
+
+test("catalog ownership, target identity, command bodies, and replay are bound together", async () => {
+  const f = await controlFixture(), other = await f.session(), p2 = await f.pair(other);
+  await f.native(p2.token, { operation: "poll", permissions: f.access });
+  assert.equal((await (await f.browser(other)).json()).catalog, null);
+  assert.equal((await f.browser(other, { ...f.command, deviceId: p2.deviceId })).status, 409);
+  assert.equal((await f.browser(f.cookie, { ...f.command, windowId: randomUUID() })).status, 409);
+  assert.equal((await f.browser(f.cookie, f.command)).status, 200);
+  assert.equal((await f.browser(f.cookie, f.command)).status, 200);
+  assert.equal((await f.browser(f.cookie, { ...f.command, action: { kind: "type_text", text: "different" } })).status, 409);
+  assert.equal((await f.native(p2.token, f.authorize)).status, 409);
+});
+
+test("input schemas reject shell commands, held keys, unbounded input and invalid coordinates", async () => {
+  const f = await controlFixture();
+  for (const action of [
+    { kind: "shell", command: "echo demo" }, { kind: "key_down", key: "a" },
+    { kind: "key", key: "a", modifiers: ["command", "command"] },
+    { kind: "type_text", text: "x".repeat(501) }, { kind: "type_text", text: "hello\nworld" },
+    { kind: "pointer", mode: "click", point: { x: 2, y: 0.5 } },
+    { kind: "pointer", mode: "drag", point: { x: 0.5, y: 0.5 } },
+    { kind: "scroll", point: { x: 0.5, y: 0.5 }, dx: 0, dy: 601 },
+    { kind: "activate_window", pid: 123 },
+  ]) assert.equal((await f.browser(f.cookie, { ...f.command, action })).status, 400);
+});
+
+test("all bounded input variants dispatch once, without claiming application success", async () => {
+  const f = await controlFixture();
+  const point = { x: 0.4, y: 0.5 };
+  const actions = [
+    { kind: "type_text", text: "Demo text 👋" }, { kind: "key", key: "a", modifiers: ["command"] },
+    ...["move", "click", "double_click", "right_click"].map(mode => ({ kind: "pointer", mode, point })),
+    { kind: "pointer", mode: "drag", point, end: { x: 0.6, y: 0.6 } },
+    { kind: "scroll", point, dx: 0, dy: -200 },
+  ];
+  for (const action of actions) {
+    const requestId = randomUUID();
+    assert.equal((await f.browser(f.cookie, { ...f.command, requestId, action })).status, 200);
+    assert.equal((await f.native(f.p.token, { ...f.authorize, requestId })).status, 200);
+    assert.equal((await f.native(f.p.token, { operation: "result", requestId, result: "succeeded" })).status, 400);
+    assert.equal((await f.native(f.p.token, { operation: "result", requestId, result: "dispatched" })).status, 200);
+    assert.equal((await (await f.browser(f.cookie)).json()).request.action, undefined);
+  }
+});
+
+test("offline or disconnected execution stays uncertain and never replays", async () => {
+  for (const mode of ["offline", "disconnect"] as const) {
+    const f = await controlFixture();
+    await f.browser(f.cookie, f.command);
+    await f.native(f.p.token, f.authorize);
+    if (mode === "offline") f.advance(16_000);
+    else await f.browser(f.cookie, { operation: "disconnect" });
+    const state = await (await f.browser(f.cookie)).json();
+    assert.equal(state.request.status, "unknown");
+    assert.equal(state.catalog, null);
+    assert.equal((await f.native(f.p.token, f.authorize)).status, mode === "offline" ? 409 : 401);
+  }
 });

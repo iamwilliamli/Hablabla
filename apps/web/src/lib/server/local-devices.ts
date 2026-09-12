@@ -8,7 +8,7 @@ const maxBody = 2_810_000;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 type Snapshot = NonNullable<DeviceState["request"]> & { bytes?: Uint8Array; digest?: string };
 type Session = { expires: number; seen: number; challenge?: { digest: string; expires: number };
-  device?: NonNullable<DeviceState["device"]> & { tokenHash: string }; request?: Snapshot; used: Set<string> };
+  device?: NonNullable<DeviceState["device"]> & { tokenHash: string }; request?: Snapshot; catalog?: NonNullable<DeviceState["catalog"]>; used: Map<string, string> };
 class LocalError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 
 /** In-memory, single-process, loopback-only broker. Restart deliberately revokes
@@ -23,13 +23,17 @@ export class LocalDevices {
     for (const [key, session] of this.sessions) {
       if (now >= session.expires) { this.sessions.delete(key); continue; }
       if (session.challenge && now >= session.challenge.expires) session.challenge = undefined;
+      const offline = !session.device || now - Date.parse(session.device.lastSeen) > 10_000 || now - session.seen > 15_000;
+      if (session.catalog && (offline || !session.device?.permissions.accessibility || now >= Date.parse(session.catalog.expiresAt))) session.catalog = undefined;
       const request = session.request;
       if (!request) continue;
-      const offline = !session.device || now - Date.parse(session.device.lastSeen) > 10_000 || now - session.seen > 15_000;
       if (request.status === "awaiting_approval" && (offline || now >= Date.parse(request.expiresAt))) {
         request.status = offline ? "cancelled" : "expired";
       }
+      if (request.status === "executing" && (offline || now >= Date.parse(request.expiresAt))) request.status = "unknown";
+      if (request.status === "awaiting_approval" && request.kind !== "snapshot" && (!session.device?.permissions.accessibility || (request.kind === "control" && !session.catalog))) request.status = "failed";
       if (request.status === "shared" && (offline || now >= Date.parse(request.imageExpiresAt!))) request.status = "expired";
+      if (!["awaiting_approval", "executing"].includes(request.status)) request.action = undefined;
       if (request.status !== "shared") { request.bytes = undefined; request.metadata = null; request.imageExpiresAt = null; }
     }
   }
@@ -38,9 +42,10 @@ export class LocalDevices {
     const device = session.device;
     const request = session.request;
     return {
+      catalog: session.catalog ?? null,
       device: device ? { id: device.id, name: device.name, permissions: device.permissions, lastSeen: device.lastSeen,
         online: this.now() - Date.parse(device.lastSeen) <= 10_000 } : null,
-      request: request ? { id: request.id, status: request.status, expiresAt: request.expiresAt,
+      request: request ? { id: request.id, kind: request.kind, catalogId: request.catalogId, windowId: request.windowId, action: request.action, status: request.status, expiresAt: request.expiresAt,
         imageExpiresAt: request.imageExpiresAt, metadata: request.metadata } : null,
     };
   }
@@ -75,25 +80,52 @@ export class LocalDevices {
           const token = randomBytes(32).toString("hex");
           owner.device = { id: randomUUID(), name: input.name, online: true, permissions: input.permissions,
             lastSeen: new Date(this.now()).toISOString(), tokenHash: hash(token) };
-          return reply({ token, deviceId: owner.device.id });
+          return reply({ token, deviceId: owner.device.id, protocolVersion: 2 });
         }
         if (!session?.device) throw new LocalError(401, "Pair the companion again.");
         if (input.operation === "disconnect") { this.disconnect(session); return reply({}); }
         if (input.operation === "poll") {
           session.device.permissions = input.permissions;
           session.device.lastSeen = new Date(this.now()).toISOString();
-          const pending = session.request?.status === "awaiting_approval" ? session.request : null;
-          return reply({ request: pending ? { id: pending.id, expiresAt: pending.expiresAt } : null });
+          this.sweep();
+          const pending = session.request && ["awaiting_approval", "executing"].includes(session.request.status) ? session.request : null;
+          return reply({ request: pending ? { id: pending.id, kind: pending.kind, expiresAt: pending.expiresAt, catalogId: pending.catalogId, windowId: pending.windowId, action: pending.action } : null });
         }
         const pending = session.request;
         if (!pending || pending.id !== input.requestId) throw new LocalError(409, "Request is no longer available.");
         // A lost successful reply can be acknowledged, but never republishes an
         // expired/cleared image or executes another capture.
         const digest = hash(JSON.stringify(input));
-        if (pending.digest === digest && ["shared", "denied", "failed"].includes(pending.status)) return reply({});
+        if (pending.digest === digest && ["shared", "denied", "failed", "succeeded", "dispatched", "unknown"].includes(pending.status)) return reply({});
+        if (input.operation === "result") {
+          const executing = pending.status === "executing" && pending.kind === "control";
+          if (!(executing || (pending.status === "awaiting_approval" && ["denied", "failed"].includes(input.result))))
+            throw new LocalError(409, "No action is awaiting this result.");
+          if (input.result === "succeeded" && pending.action?.kind !== "activate_window") throw new LocalError(400, "Input delivery cannot prove application success.");
+          pending.status = input.result; pending.digest = digest; pending.action = undefined;
+          return reply({});
+        }
         if (pending.status !== "awaiting_approval" || this.now() >= Date.parse(pending.expiresAt))
           throw new LocalError(409, "Request was cancelled or expired.");
-        if (input.operation === "result") { pending.status = input.result; pending.digest = digest; return reply({}); }
+        if (input.operation === "authorize") {
+          if (pending.kind !== "control" || !session.device.permissions.accessibility ||
+              !session.catalog || session.catalog.id !== input.catalogId || pending.catalogId !== input.catalogId ||
+              pending.windowId !== input.windowId || !session.catalog.windows.some(w => w.id === input.windowId))
+            throw new LocalError(409, "Window approval is no longer valid.");
+          // Single execution claim. A lost reply is uncertain, never replayable.
+          pending.status = "executing";
+          return reply({ allowed: true });
+        }
+        if (input.operation === "windows") {
+          const expires = Date.parse(input.catalog.expiresAt);
+          if (pending.kind !== "list_windows" || !session.device.permissions.accessibility || expires <= this.now() || expires > this.now() + 180_000 ||
+              new Set(input.catalog.windows.map(w => w.id)).size !== input.catalog.windows.length)
+            throw new LocalError(400, "Invalid window selection.");
+          session.catalog = input.catalog; pending.status = "shared"; pending.digest = digest;
+          pending.imageExpiresAt = input.catalog.expiresAt;
+          return reply({});
+        }
+        if (pending.kind !== "snapshot") throw new LocalError(409, "This request is not a snapshot.");
         const bytes = Buffer.from(input.jpeg, "base64");
         if (bytes.byteLength > 2 * 1024 * 1024 || bytes.toString("base64") !== input.jpeg) throw new LocalError(400, "Invalid snapshot.");
         const dimensions = jpegDimensions(bytes);
@@ -117,7 +149,7 @@ export class LocalDevices {
         if (request.method !== "GET" || url.search) throw new LocalError(401, "Reload the dashboard to start a session.");
         if (this.sessions.size >= 16) throw new LocalError(503, "Too many local sessions. Close unused sessions or restart the web server.");
         const token = randomBytes(32).toString("hex");
-        session = { expires: this.now() + 2 * 60 * 60_000, seen: this.now(), used: new Set() };
+        session = { expires: this.now() + 2 * 60 * 60_000, seen: this.now(), used: new Map() };
         this.sessions.set(hash(token), session);
         headers["Set-Cookie"] = `${cookieName}=${token}; HttpOnly; SameSite=Strict; Path=/api/devices; Max-Age=7200`;
       }
@@ -141,18 +173,29 @@ export class LocalDevices {
           session.challenge = { digest: hash(code), expires: this.now() + 120_000 };
           return reply({ code, expiresAt: new Date(session.challenge.expires).toISOString() });
         }
-        case "snapshot": {
+        case "snapshot":
+        case "list_windows":
+        case "control": {
           if (!session.device || session.device.id !== input.deviceId) throw new LocalError(404, "Mac is not paired to this browser.");
-          if (session.used.has(input.requestId)) return reply(this.state(session));
+          const digest = hash(JSON.stringify(input));
+          if (session.used.has(input.requestId)) {
+            if (session.used.get(input.requestId) !== digest) throw new LocalError(409, "Request ID already used for different details.");
+            return reply(this.state(session));
+          }
           if (!this.state(session).device?.online) throw new LocalError(409, "Companion is offline. Reconnect it first.");
-          if (session.request?.status === "awaiting_approval") throw new LocalError(409, "Finish or cancel the current request first.");
-          if (session.used.size >= 500) throw new LocalError(429, "This browser session reached its snapshot limit. Start a new browser session.");
-          session.used.add(input.requestId);
-          session.request = { id: input.requestId, status: "awaiting_approval", expiresAt: new Date(this.now() + 120_000).toISOString(), imageExpiresAt: null, metadata: null };
+          if (session.request && ["awaiting_approval", "executing"].includes(session.request.status)) throw new LocalError(409, "Finish or cancel the current request first.");
+          if (session.used.size >= 500) throw new LocalError(429, "This browser session reached its request limit. Start a new browser session.");
+          if (input.operation !== "snapshot" && !session.device.permissions.accessibility) throw new LocalError(409, "Enable Accessibility in the companion first.");
+          if (input.operation === "control" && (!session.catalog || session.catalog.id !== input.catalogId || !session.catalog.windows.some(w => w.id === input.windowId)))
+            throw new LocalError(409, "Share a fresh window list from the companion first.");
+          if (input.operation === "list_windows") session.catalog = undefined;
+          session.used.set(input.requestId, digest);
+          session.request = { id: input.requestId, kind: input.operation,
+            ...(input.operation === "control" ? { catalogId: input.catalogId, windowId: input.windowId, action: input.action } : {}), status: "awaiting_approval", expiresAt: new Date(this.now() + 120_000).toISOString(), imageExpiresAt: null, metadata: null };
           break;
         }
         case "clear":
-          if (session.request) { session.request.status = "cancelled"; session.request.bytes = undefined; session.request.metadata = null; session.request.imageExpiresAt = null; }
+          if (session.request) { session.request.status = session.request.status === "executing" ? "unknown" : "cancelled"; session.request.action = undefined; session.request.bytes = undefined; session.request.metadata = null; session.request.imageExpiresAt = null; }
           break;
         case "disconnect": this.disconnect(session); break;
       }
@@ -165,7 +208,9 @@ export class LocalDevices {
   }
 
   private disconnect(session: Session) {
-    session.device = undefined; session.request = undefined; session.challenge = undefined;
+    if (session.request?.status === "executing") { session.request.status = "unknown"; session.request.action = undefined; }
+    else session.request = undefined;
+    session.device = undefined; session.catalog = undefined; session.challenge = undefined;
     // Keep admitted IDs for the whole browser session, including across re-pair.
   }
   private byToken(authorization: string) {

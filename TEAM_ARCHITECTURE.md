@@ -62,7 +62,7 @@ The app has a setup window with actual Screen Recording/Accessibility checks, re
 See its [quickstart](apps/companion/README.md) and
 [implemented protocol](apps/companion/PROTOCOL.md), plus TECH_STACK sections
 19–23. Its Terminal demo relay remains a separate development fixture; the
-production relay, streaming, and remote-control capabilities remain future work. This
+production relay, streaming, and internet control remain future work. Local protocol v2 now adds selected window lists and separately approved window/mouse/keyboard controls; preserve its native approval and one-time execution contract in `apps/companion/LOCAL_DASHBOARD.md`. This
 handbook covers the local meeting workflow and does not replace that
 workstream's ownership boundaries.
 

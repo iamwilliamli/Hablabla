@@ -47,7 +47,7 @@ it does not require browser WebGPU or a hosted pyannote service.
 - **Local AI generation verification is explicitly deferred at the user's request. Do not restart model downloads, inference experiments, or GPU troubleshooting unless the user asks to resume.** Keep the implementation and error states intact.
 - Real generation quality, generated-card delivery, repeat requests, cancellation, and the 1B fallback still need live hardware verification. Unit tests do not establish these live behaviors.
 - Ambiguous was not configured for the UI verification. No real task was written; live approval/read-back still needs a configured test workspace and an authorized test.
-- The initial frontend change did not implement device control. The companion update below now supplies a Terminal prototype and loopback relay fixture. A same-Mac snapshot dashboard now exists at `/devices`; the production relay, screen streaming, and remote input remain planned. The homepage is still the meeting workspace.
+- The initial frontend change did not implement device control. The companion update below now supplies a Terminal prototype and loopback relay fixture. A same-Mac snapshot dashboard now exists at `/devices`; the production relay, screen streaming, and internet input remain planned. The local dashboard now supports selected windows and separately approved mouse/keyboard actions. The homepage is still the meeting workspace.
 
 ### Files and ownership
 
@@ -57,7 +57,7 @@ it does not require browser WebGPU or a hosted pyannote service.
 | Meeting local AI; verification paused | `apps/web/src/lib/local-ai/`, `apps/web/src/workers/webllm.worker.ts` | Do not replace with cloud inference or resume live tests as a side effect of companion work. |
 | Existing meeting approval backend | `apps/web/src/app/api/followups/`, `apps/web/src/lib/server/`, `apps/web/src/lib/followup-*` | Keep existing approval behavior. Device commands use a separate contract and service. |
 | **Mac companion — implemented under the user's explicit companion assignment** | `apps/companion/` (TypeScript runner, Swift helper, protocol, tests, demo fixture) | Preserve this implementation. Future frontend tasks must use its documented contract and must not scaffold over it. |
-| Device dashboard — same-Mac snapshot flow implemented | `apps/web/src/app/devices/`, `apps/web/src/components/devices/`, `apps/web/src/lib/devices-protocol.ts`, `apps/web/src/lib/server/local-devices.ts`, `apps/web/src/app/api/devices/` | Browser pairing and explicitly approved native snapshots. Separate local contract; preserve the meeting routes and provider bypass. |
+| Device dashboard — same-Mac snapshots and approved controls implemented | `apps/web/src/app/devices/`, `apps/web/src/components/devices/`, `apps/web/src/lib/devices-protocol.ts`, `apps/web/src/lib/server/local-devices.ts`, `apps/web/src/app/api/devices/` | Browser pairing, explicitly approved native snapshots, selected window catalogs, and separately approved input. Local protocol v2; preserve the meeting routes and provider bypass. |
 | Pairing and communication — future backend task | Proposed `apps/relay/` | Backend owner builds authenticated device registry, pairing, command delivery, results, and stream signaling. Do not assume this service exists yet. |
 | Shared device protocol — joint interface review | Proposed `packages/device-protocol/`; initial design in section 21 | Agree on schemas before either side implements them. One owner lands shared contract changes; consumers update together. |
 | Shared root configuration | `package.json`, `package-lock.json`, `AGENTS.md`, `TECH_STACK.md`, `apps/web/src/app/layout.tsx`, `apps/web/src/components/providers.tsx`, `apps/web/next.config.ts` | Coordinate edits. The current provider registers a browser-local agent; isolate `/devices` if it needs different agent/auth providers. Root scripts now include the companion workspace alongside web/channel and shared packages. |
@@ -665,7 +665,7 @@ The relay should be a separate long-running service for the prototype, rather th
 
 ## 20. Companion prototype and access scope
 
-The implemented prototype is a Terminal-launched TypeScript/Node process with a Swift macOS adapter. It supports pairing and `open_resource`, plus a native setup window for actual GUI-process permission status. The menu-bar app does not yet host connection or approval controls; local capture is available on macOS 14+, while streaming/control stages below remain planned.
+The implemented prototype is a Terminal-launched TypeScript/Node process with a Swift macOS adapter. It supports pairing and `open_resource`, plus a native setup window for actual GUI-process permission status. The menu-bar app now hosts the separate same-Mac dashboard connection, snapshot sharing and per-action Accessibility approvals. Local capture is available on macOS 14+; the broader streaming/internet-control stages below remain planned. See section 25 for the implemented local controls.
 
 | Stage | Deliverable | Boundary |
 | --- | --- | --- |
@@ -920,3 +920,38 @@ query and that exporting a report excludes the raw audio. Verify factual
 grounding, translation of critical details, and the actual outbound payload
 before describing this flow as working. Clinical deployment and medical-record
 integration require separate evaluation and scope decisions.
+
+
+## 25. Accessibility controls — same-Mac protocol v2
+
+The user expanded the companion assignment to include window listing/switching,
+mouse movement/clicks/dragging, scrolling, text entry and keyboard shortcuts.
+These controls are implemented in `apps/companion/native/WindowControl.swift`
+and `apps/web/src/components/devices/control-panel.tsx`, using the existing
+local broker and the strict schemas in `apps/web/src/lib/devices-protocol.ts`.
+This scope is separate from the speech worker, meeting AI and Exa research work.
+
+Start at `/devices`, pair the rebuilt app, and request a window list. A native
+checkbox review shares only selected app names/titles. Catalogs expire within
+three minutes. Each action displays its exact target and input in the companion
+and requires **Approve Once**. The native app retains AX handles locally, checks
+current permissions/title/focus, and obtains a single execution claim from the
+broker. Changed requests under a reused ID, stale catalogs, arbitrary selectors,
+raw shell commands, and replayed execution claims are rejected.
+
+Pointer positions are relative to the selected window's current bounds, not the
+snapshot. Input is bounded: one gesture/shortcut or up to 500 text characters;
+no held keys or unattended input session. The UI distinguishes verified window
+focus, input dispatched, and uncertain results. Cancellation after execution was
+claimed cannot promise rollback. Native input is never exposed through the
+Terminal `--stdio` pipe. The version handshake rejects v1 companion builds;
+update web/native together and re-pair.
+
+Validation: all **144 repository tests/typechecks**, **three bundle checks**, and
+the production web build passed after upstream speech update `22540f5`. The
+native code compiled on macOS 26.6.2. Initial real checks verified both actual
+permissions, selected-title sharing, focusing TextEdit, Unicode typing and a
+Command-A shortcut. See `apps/companion/LOCAL_DASHBOARD.md` for final live outcomes
+and remaining limitations. Local AI generation remains explicitly deferred.
+
+Final Accessibility smoke tests also observed click/double-click/right-click, drag selection, scrolling, decline and browser cancellation. Minimized restore made the window visible but returned an honest unknown focus result; that case is only partially verified. The final build rechecks focus for up to two seconds without replaying actions. The browser layout was checked at 1280 px. See the local contract for untested OS versions, concurrency limits and snapshot test provenance.

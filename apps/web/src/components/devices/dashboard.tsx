@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { ControlPanel } from "./control-panel";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { deviceStateSchema, type DeviceState } from "@/lib/devices-protocol";
 
-const empty: DeviceState = { device: null, request: null };
+const empty: DeviceState = { device: null, request: null, catalog: null };
 const pairingSchema = z.object({ code: z.string().regex(/^[a-f0-9]{32}$/), expiresAt: z.iso.datetime() });
 const messages = {
   awaiting_approval: "Choose and capture a source in the Mac app, then click Share with Dashboard.",
@@ -13,6 +14,10 @@ const messages = {
   denied: "Declined on your Mac. No image was shared.",
   cancelled: "Request cancelled. You can request a fresh snapshot.",
   expired: "This request or image has expired. Request a fresh snapshot when you’re ready.",
+  executing: "An action is in progress on your Mac.",
+  succeeded: "Window focused.",
+  dispatched: "Input sent. Check your Mac for the result.",
+  unknown: "The result is uncertain. Check your Mac before retrying.",
   failed: "Capture did not complete. Check the companion and try again.",
 };
 async function api(body?: unknown) {
@@ -67,7 +72,7 @@ export function DeviceDashboard() {
     return () => { stopped = true; mounted.current = false; clearTimeout(timer); clearInterval(clock); };
   }, [load]);
 
-  const snapshot = state.request;
+  const snapshot = state.request?.kind === "snapshot" ? state.request : null;
   const imageId = snapshot?.status === "shared" && snapshot.imageExpiresAt && Date.parse(snapshot.imageExpiresAt) > now ? snapshot.id : null;
   useEffect(() => {
     setImage(null);
@@ -107,6 +112,7 @@ export function DeviceDashboard() {
   }
   const device = state.device;
   const waiting = snapshot?.status === "awaiting_approval";
+  const anyPending = state.request && ["awaiting_approval", "executing"].includes(state.request.status);
   const codeValid = pairing && Date.parse(pairing.expiresAt) > now;
   const status = snapshot ? messages[snapshot.status] : "Your Mac will ask you to choose and approve each snapshot.";
 
@@ -123,7 +129,7 @@ export function DeviceDashboard() {
             <h2>{device?.name ?? "Pair your Mac"}</h2>
             <p className={`dv-connection ${device?.online ? "is-online" : ""}`}><span aria-hidden="true">●</span> {device ? device.online ? "Companion connected" : "Companion offline" : "Not connected"}</p>
             {!device ? <>
-              <p>Connect this browser to Hablabla Companion to request a snapshot.</p>
+              <p>Connect this browser to Hablabla Companion to request snapshots and computer controls.</p>
               <ol className="dv-steps"><li>Open <strong>Hablabla Companion</strong>.</li><li>Choose <strong>Local Dashboard…</strong> from its menu bar icon.</li><li>Create a code here and paste it into the app.</li></ol>
               <button className="dv-primary" disabled={!ready || busy} onClick={() => void act({ operation: "pairing" }, true)}>{codeValid ? "Create a new code" : "Create pairing code"}</button>
               {pairing && <div className="dv-pairing"><label htmlFor="pair-code">One-time pairing code</label><input id="pair-code" readOnly value={codeValid ? pairing.code : "Code expired"} spellCheck={false} onFocus={event => event.currentTarget.select()} />
@@ -132,7 +138,7 @@ export function DeviceDashboard() {
               </div>}
             </> : <>
               <dl className="dv-permissions"><div><dt>Screen Recording</dt><dd>{device.permissions.screenRecording ? "Granted" : "Not granted"}</dd></div><div><dt>Accessibility</dt><dd>{device.permissions.accessibility ? "Granted" : "Not granted"}</dd></div></dl>
-              <p className="dv-small">Reported by the running companion. Screen capture uses the macOS picker; Accessibility is for future controls.</p>
+              <p className="dv-small">Reported by the running companion. Screen capture uses the macOS picker; Accessibility enables approved window, mouse, and keyboard actions.</p>
               <button className="dv-danger" disabled={busy} onClick={() => { setState(empty); void act({ operation: "disconnect" }); }}>Disconnect & clear</button>
             </>}
           </section>
@@ -145,12 +151,13 @@ export function DeviceDashboard() {
           </div>
           <div className="dv-viewer-footer"><p role="status" aria-live="polite">{status}</p>
             {snapshot?.metadata && imageId && <dl className="dv-metadata"><div><dt>Source</dt><dd>{snapshot.metadata.target}</dd></div><div><dt>Captured</dt><dd><time dateTime={snapshot.metadata.capturedAt}>{new Date(snapshot.metadata.capturedAt).toLocaleTimeString()}</time></dd></div><div><dt>Size</dt><dd>{snapshot.metadata.width} × {snapshot.metadata.height}</dd></div></dl>}
-            <div className="dv-actions"><button className="dv-primary" disabled={!device?.online || busy || waiting} onClick={() => device && void act({ operation: "snapshot", requestId: crypto.randomUUID(), deviceId: device.id })}>{waiting ? "Waiting for your approval…" : "Request snapshot"}<span aria-hidden="true"> ↗</span></button>
+            <div className="dv-actions"><button className="dv-primary" disabled={!device?.online || busy || !!anyPending} onClick={() => device && void act({ operation: "snapshot", requestId: crypto.randomUUID(), deviceId: device.id })}>{waiting ? "Waiting for your approval…" : "Request snapshot"}<span aria-hidden="true"> ↗</span></button>
               {snapshot && <button disabled={busy} onClick={() => { setState(s => ({ ...s, request: null })); void act({ operation: "clear" }); }}>{waiting ? "Cancel request" : "Clear snapshot"}</button>}
             </div>
           </div>
         </section>
       </div>
+      <ControlPanel state={state} busy={busy} now={now} act={act} />
       <p className="dv-bottom" role="status">{notice || "Pairing lasts for this session. Closing the companion connection window stops sharing."}</p>
     </main>
   </div>;
