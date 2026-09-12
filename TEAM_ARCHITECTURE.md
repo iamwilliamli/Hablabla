@@ -46,7 +46,7 @@ match and obtain confirmation before changing a visible speaker name.
 The separate computer companion now has an implemented Terminal prototype in
 `apps/companion/` (pairing, Keychain credentials, local approval, and registered
 document opening), plus an installed `Hablabla Companion.app` native bundle.
-The app has a minimal About/Quit menu; connection and approval stay in Terminal.
+The app has a setup window with actual Screen Recording/Accessibility checks, refresh and explicit request/Settings controls, plus About/Quit. Connection and approval stay in Terminal.
 See its [quickstart](apps/companion/README.md) and
 [implemented protocol](apps/companion/PROTOCOL.md), plus TECH_STACK sections
 19–23. Its loopback demo relay is a development fixture; the device dashboard,
@@ -354,8 +354,8 @@ remaining architecture and schedule as targets, not evidence of completion.
 | Native speech | No Hablabla speech worker or `/api/local` routes yet | William builds the worker; Renzo integrates its local API |
 | Existing speech code | Handbook identifies a separate LiveTranscriber project | Confirm reuse/provenance and macOS compatibility before claiming integration |
 | Approval | Meeting `MTG-...` IDs use the existing immutable proposal, approval, denial, and read-back gate | Live Ambiguous write verification and coordinated future domain migration |
-| Companion | `apps/companion/` pairs, stores credentials in Keychain, and opens registered files after Terminal approval; its native app bundle has a fixed ID/install path and minimal About/Quit menu | Permission checks, capture/control, device dashboard, production relay, and verification of signing/permission persistence |
-| Checks | 113 repository tests/typechecks and three app-bundle tests passed during packaging; prior web build passed during companion verification | Run checks for subsequent changes; fake inference/provider tests do not verify live models or writes |
+| Companion | `apps/companion/` pairs, stores credentials in Keychain, and opens registered files after Terminal approval; its native app bundle has a fixed ID/install path and a setup window with actual GUI-process permission checks and explicit request controls | Capture/control, device dashboard, production relay, and verification of signing/permission persistence |
+| Checks | 113 repository tests/typechecks and three app-bundle tests passed again for permission setup; prior web build passed during companion verification | Run checks for subsequent changes; fake inference/provider tests do not verify live models or writes |
 
 The current starter's chat and voice paths include remote model integrations.
 Installing dependencies or launching the starter does not make inference local.

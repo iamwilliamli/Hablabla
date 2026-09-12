@@ -22,7 +22,7 @@ test("built background app has the expected identity and a valid signature", mac
   assert.equal(identity.bundlePath, buildApp);
 });
 test("bundled RPC mode rejects unsupported actions and unexpected launch arguments", mac, () => {
-  for (const input of [{ op: "shell", account: "not-a-uuid" }, { op: "capture_display" }, { op: "open_resource", path: "/tmp/unregistered.txt" }]) {
+  for (const input of [{ op: "shell", account: "not-a-uuid" }, { op: "capture_display" }, { op: "request_screen_permission" }, { op: "request_accessibility_permission" }, { op: "open_resource", path: "/tmp/unregistered.txt" }]) {
     const result = rpc(input);
     assert.equal(result.status, 1);
     assert.deepEqual(JSON.parse(result.stdout), { error: "native_operation_failed" });

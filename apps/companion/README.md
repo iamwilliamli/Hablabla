@@ -69,8 +69,8 @@ npm run companion -- app
 npm run companion -- app-info
 ```
 
-Opening the app shows an explanation and a small computer icon in the menu bar,
-with About and Quit Helper controls. The app does not claim to be connected:
+Opening the app shows its **Setup** window and a small computer icon in the menu
+bar, with Setup & Permissions, About, and Quit Helper controls. The app does not claim to be connected:
 **pairing, the relay connection, and approval still run in Terminal**. Quitting
 the menu-bar helper does not stop that separate process; use Ctrl+C there.
 
@@ -104,13 +104,39 @@ the same signing identity for updates. Existing companion state and Keychain
 account IDs are retained; macOS may request Keychain authorization when code
 identity changes. This build is not notarized or packaged for public distribution.
 
-Packaging does not grant screen recording or Accessibility access. Those
-capabilities and permission checks are still unimplemented. When they are added,
-verify authorization from the process performing the operation, including its
-launch path; a Terminal-launched `--stdio` process must not be assumed to inherit
+Packaging does not grant Screen Recording or Accessibility access. The setup
+window now checks both permissions in the running background app. Future capture
+and control operations must verify authorization from their own process, including
+its launch path; a Terminal-launched `--stdio` process must not be assumed to inherit
 grants observed in a Finder-launched app or in Codex Computer Use. The background
 app is the intended host for future permission-sensitive operations; integrating
 its communication with the runner is a separate next step.
+
+### Setup window
+
+Open the installed app, run `npm run companion -- app`, or choose **Setup &
+Permissions…** from its menu. Screen Recording uses
+[`CGPreflightScreenCaptureAccess`](https://developer.apple.com/documentation/coregraphics/cgpreflightscreencaptureaccess()),
+and Accessibility uses
+[`AXIsProcessTrusted`](https://developer.apple.com/documentation/applicationservices/1459188-axisprocesstrusted).
+Both report actual access for the GUI process. No permission is inferred from
+Codex, Terminal, a dashboard, or a stored configuration flag.
+
+- Status refreshes on opening, app activation, every two seconds while the window
+  is open, and with **Refresh Status** (Command-R).
+- **Not granted** covers both an unanswered request and denied access; these
+  APIs do not distinguish those cases. Screen Recording may require quitting and
+  reopening the app after changing permission before preflight reports access.
+- Only the explicit **Request…** buttons invoke macOS permission prompts.
+  Accessibility prompting is asynchronous; returning from a request is never
+  treated as a grant. **Open Settings…** opens the relevant Privacy & Security
+  pane, where the user makes their choice.
+- Opening, refreshing, or closing the window does not request access, capture
+  content, or control the desktop. Closing it leaves the menu helper running;
+  reopening the app brings the same setup window back.
+
+Permission status and requests are local GUI features, not new relay/RPC
+capabilities. Existing document opening does not require these grants.
 
 ## Local state and permissions
 
@@ -125,7 +151,7 @@ Default state: `~/Library/Application Support/Hablabla Companion/` (directory mo
 
 The adapter accepts regular PDF, PPT/PPTX, KEY, and TXT files up to 100 MB. Older package-directory Keynote files are not supported. Registered files are pinned to a canonical path and SHA-256 digest. If you edit or replace the document, register it again. The native adapter checks the digest immediately before opening; it is not a sandbox against another process running as the same macOS user.
 
-Only device name, resource IDs/labels, and command status leave the Mac. File paths and document contents stay local. Opening a file may trigger ordinary macOS file-access or application prompts. Accessibility, screen capture, microphone access, and remote input are not requested by this prototype.
+Only device name, resource IDs/labels, and command status leave the Mac. File paths and document contents stay local. Opening a file may trigger ordinary macOS file-access or application prompts. Screen Recording and Accessibility are requested only through explicit setup-window buttons. Microphone access and remote input remain unimplemented.
 
 ## Connection and execution
 
@@ -145,15 +171,14 @@ The concrete companion contract is in [PROTOCOL.md](PROTOCOL.md), with Zod schem
 
 The future `/devices` dashboard, `apps/relay/`, and `packages/device-protocol/` remain separate integration work. No meeting page/provider files were changed. Agree on protocol changes before extracting these schemas into a shared package.
 
-Implemented capability: `open_resource`, plus native app packaging and a minimal About/Quit menu. Screen capture, streaming, remote keyboard/mouse, window control, voice input, connection/approval controls in the menu-bar app, and server-side AI planning remain future work. The WebGPU meeting model remains explicitly out of scope.
+Implemented capability: `open_resource`, plus native app packaging, a setup window with actual permission checks/request controls, and an About/Quit menu. Screen capture, streaming, remote keyboard/mouse, window control, voice input, connection/approval controls in the menu-bar app, and server-side AI planning remain future work. The WebGPU meeting model remains explicitly out of scope.
 
-## Next milestone: app permissions and screen capture
+## Next milestone: one screen capture
 
-Packaging is implemented. Next: add permission status/setup controls in the
-background app and verify one user-selected screen/window capture before adding
-remote input. The current CLI does not expose a permission
-setup command. Permissions enabled for Codex Computer Use are not a permission
-check for Hablabla Companion.
+Packaging and permission setup are implemented. Next: implement and verify one
+user-selected screen/window capture in the background app before adding remote
+input. `npm run companion -- app` opens setup. Permissions enabled for Codex
+Computer Use are not a permission check for Hablabla Companion.
 
 Keep this computer-control adapter separate from William's native speech worker
 in the [team handbook](../../TEAM_ARCHITECTURE.md). Coordinate dashboard and
@@ -195,3 +220,16 @@ Packaging verification on September 12, 2026:
 - Screen/control permission grants and persistence across certificate-signed
   updates were not tested. No permissions or signing certificates were granted
   or installed by these checks.
+
+Permission-setup verification on September 12, 2026:
+
+- Rebuilt and installed the app; all 113 repository tests, workspace typechecks,
+  and three bundle tests passed again. RPC checks also reject permission-request
+  operations, keeping prompts in the locally operated setup window.
+- Inspected the native window visually and through its accessibility tree. Both
+  permissions initially reported **Not granted**; manual/automatic refresh worked.
+  During user interaction, Accessibility subsequently reported **Granted** and
+  its request button became disabled. Screen Recording still reported no access
+  in that process; a grant/relaunch flow was not fully verified.
+- No automated permission grants, capture, or remote input were performed.
+  Permission persistence across changed builds remains unverified.

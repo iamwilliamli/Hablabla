@@ -77,8 +77,9 @@ The user explicitly assigned companion implementation after the initial handoff.
 - Concrete schemas currently live in `apps/companion/src/protocol.ts`. The v1 transport uses authenticated connect/poll/heartbeat/authorize/events/revoke HTTP endpoints. The earlier candidate endpoints in section 21 remain a dashboard/backend design; use the companion protocol document for the implemented wire format before extracting a shared package.
 - `npm run verify` passed **112 tests** (the original 97 plus 15 companion tests) and every workspace typecheck. The Swift helper compiled and the web production build passed. A live paired request opened the bundled TXT document, observed in TextEdit; denial and Ctrl+C cancellation reached the relay. Test credentials were revoked and removed afterward.
 - `succeeded / open_dispatched` means macOS accepted the file-open request. The smoke test separately observed its visible window. The prototype does not return screen images or prove visibility automatically.
-- The native helper is now packaged as `Hablabla Companion.app` with bundle ID `com.hablabla.companion`, installed by `companion:install` at `~/Applications/Hablabla Companion.app`. The CLI uses its bundled executable. A minimal About/Quit menu is implemented; pairing and approval remain in Terminal.
+- The native helper is now packaged as `Hablabla Companion.app` with bundle ID `com.hablabla.companion`, installed by `companion:install` at `~/Applications/Hablabla Companion.app`. The CLI uses its bundled executable. Its setup window reports real Screen Recording/Accessibility status, refreshes automatically, and offers explicit request/Settings controls; pairing and approval remain in Terminal.
 - Packaging checks passed: 113 repository tests/typechecks, three bundle tests, installed-app identity/signature, Keychain round-trip, and an approved live document-open request. The local build uses ad-hoc signing; certificate signing can be selected explicitly with `HABLABLA_SIGNING_IDENTITY`. Ad-hoc rebuilds do not guarantee retained macOS permission grants.
+- Setup verification: all 113 repository tests/typechecks and three bundle tests passed again. The installed window was visually/accessibility inspected; both checks initially reported **Not granted**, and Accessibility updated to **Granted** during user interaction. Screen Recording grant/relaunch and signing persistence remain unverified. No capture or automated permission grants were performed.
 - Capture/streaming, keyboard/mouse control, window management, full menu-bar connection/approval controls, voice, server-side AI, public relay authentication/deployment, and `/devices` are still unimplemented. Local meeting-AI verification remains paused.
 
 
@@ -641,7 +642,7 @@ The relay should be a separate long-running service for the prototype, rather th
 
 ## 20. Companion prototype and access scope
 
-The implemented prototype is a Terminal-launched TypeScript/Node process with a Swift macOS adapter. It supports pairing and `open_resource`; later stages below remain planned. A menu-bar window is a later interface for the same connection and permission state.
+The implemented prototype is a Terminal-launched TypeScript/Node process with a Swift macOS adapter. It supports pairing and `open_resource`, plus a native setup window for actual GUI-process permission status. The menu-bar app does not yet host connection or approval controls; later capture/control stages below remain planned.
 
 | Stage | Deliverable | Boundary |
 | --- | --- | --- |
@@ -657,18 +658,23 @@ For multiple windows, the initial device viewer shows **one selected Mac display
 
 A later WebRTC stream is a proposed media transport, with authenticated signaling through the relay and a separate scoped control channel. Until a transport is implemented and tested, use a still capture and label its timestamp; do not present stale frames as a live stream.
 
-### Next companion milestone: permissions and one capture
+### Next companion milestone: one capture
 
 The app packaging is implemented: fixed bundle ID `com.hablabla.companion`,
-user install path, signature verification, and a minimal About/Quit menu. The
+user install path, signature verification, and a setup/About/Quit menu. The
 CLI invokes its bundled executable with `--stdio` for Keychain and
-`open_resource`. Permission checks, setup controls, and screen capture are the
-next implementation step; no permission-status or capture operation exists yet.
+`open_resource`. The setup window uses `CGPreflightScreenCaptureAccess()` and
+`AXIsProcessTrusted()` in the running GUI app, with refresh on activation, a
+two-second visible-window timer, and a manual refresh button. Requests happen
+only through explicit user buttons; their return does not imply access. A false
+check is shown as **Not granted**, without guessing denied versus never requested.
+Permission status is not exposed through the relay or Terminal RPC. Screen
+capture remains the next implementation step.
 The local build is ad-hoc signed; retaining grants across changed builds needs
 a compatible signing identity and verification. See the companion README for
 the explicit certificate-signing option and launch-context limitation.
 
-The proposed setup separates screen viewing from control: request screen access
+The setup separates screen viewing from control. Next, use screen access
 for one user-selected display/window, then add Accessibility-backed window/input
 operations as a later capability. Permission status must come from the companion
 process, not from the dashboard or the development tool. Permissions enabled for

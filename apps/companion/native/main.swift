@@ -70,6 +70,7 @@ if op == "identity" {
 
 final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    private lazy var setupWindow = PermissionsWindowController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -85,6 +86,9 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(title)
         menu.addItem(NSMenuItem(title: "Connection and approvals run in Terminal", action: nil, keyEquivalent: ""))
         menu.addItem(.separator())
+        let setup = NSMenuItem(title: "Setup & Permissions…", action: #selector(showSetup), keyEquivalent: ",")
+        setup.target = self
+        menu.addItem(setup)
         let about = NSMenuItem(title: "About Hablabla Companion…", action: #selector(showAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
@@ -93,13 +97,15 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(quit)
         item.menu = menu
         statusItem = item
-        showAbout()
+        showSetup()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { showAbout() }
+        showSetup()
         return true
     }
+
+    @objc private func showSetup() { setupWindow.present() }
 
     @objc private func showAbout() {
         NSApp.activate(ignoringOtherApps: true)

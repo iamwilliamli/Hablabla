@@ -14,8 +14,9 @@ try {
   await copyFile(join(root, "native", "Info.plist"), join(contents, "Info.plist"));
   run("/usr/bin/plutil", ["-lint", join(contents, "Info.plist")]);
   const arch = process.arch === "arm64" ? "arm64" : "x86_64";
-  run("/usr/bin/xcrun", ["swiftc", join(root, "native", "main.swift"), "-O", "-target", `${arch}-apple-macos13.0`,
-    "-o", join(contents, "MacOS", executableName), "-framework", "AppKit", "-framework", "Security"]);
+  run("/usr/bin/xcrun", ["swiftc", join(root, "native", "main.swift"), join(root, "native", "PermissionsWindow.swift"), "-O", "-target", `${arch}-apple-macos13.0`,
+    "-o", join(contents, "MacOS", executableName), "-framework", "AppKit", "-framework", "Security",
+    "-framework", "ApplicationServices", "-framework", "CoreGraphics"]);
   // An explicit identity is never silently downgraded to ad-hoc signing.
   const identity = process.env.HABLABLA_SIGNING_IDENTITY?.trim() || "-";
   run("/usr/bin/codesign", ["--force", "--sign", identity, "--options", "runtime", "--timestamp=none", app]);
