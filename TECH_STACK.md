@@ -21,7 +21,7 @@ it does not require browser WebGPU or a hosted pyannote service.
 **Read this section before changing the project.** There are now two workstreams:
 
 1. **Meeting workspace:** the existing web UI and browser-local meeting assistant described in sections 1–18.
-2. **Computer companion:** the user's separate, planned Mac device-control workstream described in sections 19–23. It may use server-side AI with explicit screen-sharing consent. It must not silently change the meeting workspace's privacy boundary.
+2. **Computer companion:** the Mac device-control workstream described in sections 19–23 now has an implemented Terminal prototype; see the companion update below. It may use server-side AI with explicit screen-sharing consent. It must not silently change the meeting workspace's privacy boundary.
 
 ### What is implemented
 
@@ -47,7 +47,7 @@ it does not require browser WebGPU or a hosted pyannote service.
 - **Local AI generation verification is explicitly deferred at the user's request. Do not restart model downloads, inference experiments, or GPU troubleshooting unless the user asks to resume.** Keep the implementation and error states intact.
 - Real generation quality, generated-card delivery, repeat requests, cancellation, and the 1B fallback still need live hardware verification. Unit tests do not establish these live behaviors.
 - Ambiguous was not configured for the UI verification. No real task was written; live approval/read-back still needs a configured test workspace and an authorized test.
-- The Mac companion, device dashboard, pairing/relay service, screen streaming, and remote input are **planned, not implemented in this frontend change**. The current homepage is a meeting dashboard, not a remote desktop.
+- The initial frontend change did not implement device control. The companion update below now supplies a Terminal prototype and loopback relay fixture. The `/devices` dashboard, production relay, screen streaming, and remote input remain planned. The homepage is still the meeting workspace.
 
 ### Files and ownership
 
@@ -56,16 +56,33 @@ it does not require browser WebGPU or a hosted pyannote service.
 | Meeting frontend | `apps/web/src/app/page.tsx`, `apps/web/src/app/workspace.css`, `apps/web/src/components/{icons,meeting-dialog,model-status}.tsx`, `apps/web/src/lib/{meetings,meeting-examples}.ts` | Preserve the completed workspace when adding the device dashboard. |
 | Meeting local AI; verification paused | `apps/web/src/lib/local-ai/`, `apps/web/src/workers/webllm.worker.ts` | Do not replace with cloud inference or resume live tests as a side effect of companion work. |
 | Existing meeting approval backend | `apps/web/src/app/api/followups/`, `apps/web/src/lib/server/`, `apps/web/src/lib/followup-*` | Keep existing approval behavior. Device commands use a separate contract and service. |
-| **Mac companion — reserved for the user / their companion agent** | Proposed `apps/companion/` and native helper files underneath it | Do not scaffold, rewrite, relocate, or implement this area as part of a frontend-only task. Follow an explicit companion assignment. |
+| **Mac companion — implemented under the user's explicit companion assignment** | `apps/companion/` (TypeScript runner, Swift helper, protocol, tests, demo fixture) | Preserve this implementation. Future frontend tasks must use its documented contract and must not scaffold over it. |
 | Device dashboard — future frontend task | Proposed `apps/web/src/app/devices/`, `apps/web/src/components/devices/`, `apps/web/src/lib/devices/` | Add a separate `/devices` route; coordinate any shared navigation/layout/provider changes. |
 | Pairing and communication — future backend task | Proposed `apps/relay/` | Backend owner builds authenticated device registry, pairing, command delivery, results, and stream signaling. Do not assume this service exists yet. |
 | Shared device protocol — joint interface review | Proposed `packages/device-protocol/`; initial design in section 21 | Agree on schemas before either side implements them. One owner lands shared contract changes; consumers update together. |
-| Shared root configuration | `package.json`, `package-lock.json`, `AGENTS.md`, `TECH_STACK.md`, `apps/web/src/app/layout.tsx`, `apps/web/src/components/providers.tsx`, `apps/web/next.config.ts` | Coordinate edits. The current provider registers a browser-local agent; isolate `/devices` if it needs different agent/auth providers. Root scripts currently include only the established web/channel workspaces. |
+| Shared root configuration | `package.json`, `package-lock.json`, `AGENTS.md`, `TECH_STACK.md`, `apps/web/src/app/layout.tsx`, `apps/web/src/components/providers.tsx`, `apps/web/next.config.ts` | Coordinate edits. The current provider registers a browser-local agent; isolate `/devices` if it needs different agent/auth providers. Root scripts now include the companion workspace alongside web/channel and shared packages. |
 
 The proposed paths reserve boundaries; they are not a report of existing files. If the companion owner already has a different directory or protocol, record that existing choice here before connecting the components. Do not move their work to match a proposed path without an explicit assignment.
 
 For parallel work, use a separate branch/worktree for each assigned component. Do not stage or commit another contributor's unfinished files. Record interface changes and verification outcomes here. Do not launch companion or backend sub-agents from the example prompt alone; assign those tasks explicitly when ready.
 
+
+### Companion implementation update — September 12, 2026
+
+The user explicitly assigned companion implementation after the initial handoff. **Stages 1–2 now exist** in `apps/companion/`; [the companion README](apps/companion/README.md) has the two-Terminal quickstart, and [PROTOCOL.md](apps/companion/PROTOCOL.md) records the concrete v1 API.
+
+- TypeScript/Node runner plus a compiled Swift macOS adapter. Outbound authenticated connection, one-time pairing, device credentials in Keychain, registered document IDs, local Terminal approval, Launch Services file opening, and correlated results.
+- Canonical path/content-hash registration, strict typed actions, short expiry, reauthorization before dispatch, cancellation, one active process, durable command/result journal, and conservative `unknown` recovery after uncertain execution. No arbitrary shell or auto-approval mode.
+- A **loopback-only development relay fixture** inside the companion workspace makes the flow runnable today. Its admin interface is Terminal. It is not the future production backend and does not expose the web dashboard. Keep `apps/relay/` and `/devices` reserved for their own integration tasks.
+- Concrete schemas currently live in `apps/companion/src/protocol.ts`. The v1 transport uses authenticated connect/poll/heartbeat/authorize/events/revoke HTTP endpoints. The earlier candidate endpoints in section 21 remain a dashboard/backend design; use the companion protocol document for the implemented wire format before extracting a shared package.
+- `npm run verify` passed **112 tests** (the original 97 plus 15 companion tests) and every workspace typecheck. The Swift helper compiled and the web production build passed. A live paired request opened the bundled TXT document, observed in TextEdit; denial and Ctrl+C cancellation reached the relay. Test credentials were revoked and removed afterward.
+- `succeeded / open_dispatched` means macOS accepted the file-open request. The smoke test separately observed its visible window. The prototype does not return screen images or prove visibility automatically.
+- Capture/streaming, keyboard/mouse control, window management, menu-bar UI, voice, server-side AI, public relay authentication/deployment, and `/devices` are still unimplemented. Local meeting-AI verification remains paused.
+
+
+### Ownership correction and OpenAI backend status — September 12, 2026
+
+William does not own the frontend. Do not modify frontend code for his tasks unless he explicitly changes this boundary. Frontend changes for the Local / OpenAI switch were withdrawn; the meeting UI remains local-only. The unconnected server-side `/api/meeting-agent` prototype and tests are retained for backend work. Direct calls to this endpoint use OpenAI when a server API key is configured; the local-only descriptions below describe the existing meeting UI, not this optional endpoint. Live OpenAI requests remain unverified. Future frontend integration belongs to its frontend owners and requires explicit disclosure before sending meeting data.
 
 ## 1. Meeting-workspace summary
 
@@ -449,12 +466,13 @@ Approved task fields only → local macOS backend → Ambiguous AI
 Local inference requires no model API key. Persistent tasks use:
 
 ```dotenv
-LOCAL_SPEECH_BASE_URL=http://127.0.0.1:8765
 AMBIGUOUS_API_KEY=replace-with-workspace-key
 WEB_APPROVAL_DIR=.data/web-approvals
 ```
 
-Do not commit `.env`. The root `.env.example` now contains placeholder configuration only.
+Do not commit `.env`. The root `.env.example` contains placeholder configuration only.
+`LOCAL_SPEECH_BASE_URL=http://127.0.0.1:8765` is a proposed future setting for
+the speech bridge; no current code consumes it.
 
 ## 13. Current meeting-workspace code locations
 
@@ -466,10 +484,10 @@ Do not commit `.env`. The root `.env.example` now contains placeholder configura
 | Self-managed AG-UI agent | `apps/web/src/lib/local-ai/webgpu-agent.ts` |
 | Meeting prompt builder | `apps/web/src/lib/local-ai/meeting-prompt.ts` |
 | Structured schemas | `apps/web/src/lib/local-ai/result-schema.ts` |
-| Local speech client | `apps/web/src/lib/local-speech/client.ts` |
-| Speech capabilities | `apps/web/src/lib/local-speech/capabilities.ts` |
-| Nemotron/Parakeet adapter | `apps/web/src/lib/local-speech/nemo-speech.ts` |
-| MOSS adapter | `apps/web/src/lib/local-speech/moss.ts` |
+| Local speech client — planned, not implemented | `apps/web/src/lib/local-speech/client.ts` |
+| Speech capabilities — planned, not implemented | `apps/web/src/lib/local-speech/capabilities.ts` |
+| Nemotron/Parakeet adapter — planned, not implemented | `apps/web/src/lib/local-speech/nemo-speech.ts` |
+| MOSS adapter — planned, not implemented | `apps/web/src/lib/local-speech/moss.ts` |
 | Agent registration | `apps/web/src/components/providers.tsx` |
 | Local backend API | `apps/web/src/app/api/` |
 | Meeting page context, chat, actions, and generated cards | `apps/web/src/app/page.tsx` |
@@ -486,7 +504,7 @@ Do not commit `.env`. The root `.env.example` now contains placeholder configura
 Give the WebLLM runtime one explicit owner. React rerenders must not reload the
 model or start concurrent generations.
 
-## 14. Required UI states
+## 14. Required UI states (speech states remain planned)
 
 - Checking WebGPU support.
 - Browser or GPU unsupported.
@@ -586,9 +604,9 @@ demo device and browser version.
 - The public repository contains no secrets, `node_modules`, build output,
   cached model weights, or private meeting data.
 
-## 19. Computer companion: separate planned workflow
+## 19. Computer companion: workflow and implementation boundary
 
-**Status: design / ownership reservation only. The user is working on the companion.** This section is a proposed integration contract for that work, not permission for another contributor to build over it.
+**Status: Terminal stages 1–2 implemented under the user's explicit companion assignment.** See the implementation update and `apps/companion/README.md`. The dashboard, production relay and later capabilities below remain the integration plan; preserve the existing companion code.
 
 The intended interaction is:
 
@@ -625,7 +643,7 @@ The relay should be a separate long-running service for the prototype, rather th
 
 ## 20. Companion prototype and access scope
 
-Start with a Terminal-launched process and an OS adapter. The companion owner chooses the implementation language and native helper after checking the libraries and macOS version. A menu-bar window is a later interface for the same connection and permission state.
+The implemented prototype is a Terminal-launched TypeScript/Node process with a Swift macOS adapter. It supports pairing and `open_resource`; later stages below remain planned. A menu-bar window is a later interface for the same connection and permission state.
 
 | Stage | Deliverable | Boundary |
 | --- | --- | --- |
@@ -641,9 +659,30 @@ For multiple windows, the initial device viewer shows **one selected Mac display
 
 A later WebRTC stream is a proposed media transport, with authenticated signaling through the relay and a separate scoped control channel. Until a transport is implemented and tested, use a still capture and label its timestamp; do not present stale frames as a live stream.
 
+### Next companion milestone: permissions and one capture
+
+This is the next implementation plan, not a report that the settings or code
+already exist. Package the Swift helper as a background `Hablabla Companion.app`
+with a consistent app identity, then add permission checks and setup controls.
+The current helper is a command-line executable supporting Keychain and
+`open_resource` only; it has no permission-status or screen-capture operation.
+
+The proposed setup separates screen viewing from control: request screen access
+for one user-selected display/window, then add Accessibility-backed window/input
+operations as a later capability. Permission status must come from the companion
+process, not from the dashboard or the development tool. Permissions enabled for
+Codex Computer Use do not establish permission for the shipped companion.
+
+Keep captures local for the first check; return a fresh timestamp, target ID,
+and dimensions with any later authorized dashboard result. Add explicit capture
+consent, denial/revocation states, and a stop control before enabling streaming
+or remote input. Do not advertise a capability until its OS adapter and tests
+exist. This work belongs under `apps/companion/`; William's speech worker and the
+meeting frontend remain separate components.
+
 ## 21. Proposed application protocol v1
 
-These names are **our proposed interfaces**, not APIs claimed to exist in a vendor SDK. Backend and companion owners should agree on them before adding `packages/device-protocol/`.
+These names are **our proposed dashboard/backend interfaces**, not APIs claimed to exist in a vendor SDK. The implemented companion endpoints and schemas are documented in `apps/companion/PROTOCOL.md`; reconcile this design with that contract before adding `packages/device-protocol/`.
 
 ### Pairing and identity
 

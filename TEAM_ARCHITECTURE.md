@@ -6,8 +6,9 @@ Last updated: September 12, 2026
 
 The meeting workspace, WebGPU agent/worker registration, and meeting-ID approval
 support have now been implemented in the remote workstream and merged locally.
-The earlier implementation snapshot and migration instructions below describe
-the starting point; inspect current source before doing those tasks again.
+The implementation status and file layout below are reconciled with the
+current source. Remaining architecture and migration steps describe planned
+integration; inspect current source before starting them.
 Read [current implementation status](TECH_STACK.md#implementation-status-and-coordination--september-12-2026)
 for the authoritative merged status and verification limits.
 
@@ -16,9 +17,40 @@ Do not resume model downloads or GPU experiments from this handbook's schedule
 unless asked. Native speech/pyannote and persisted meeting/analysis management
 remain integration work. Existing meeting imports and chats are session-only.
 
-The separate computer companion workstream and reserved `apps/companion/` paths
-are documented in TECH_STACK sections 19–23. This handbook covers the local
-meeting workflow and does not replace that workstream's ownership boundaries.
+### Speaker identity module update — September 12, 2026
+
+`apps/speaker-identity/` now contains an isolated, local Python module for
+**opt-in speaker-profile enrollment and tentative identification**. It stores
+normalized, model-versioned speaker embeddings and enrollment metadata in a
+local SQLite database (`.data/hablabla/speakers.sqlite3` by default); it does
+not store raw audio or transcripts. The database is ignored by Git.
+
+- Enrollment requires an explicit `--consent` flag. Profiles can be listed and
+  permanently deleted locally.
+- Identification uses cosine similarity plus a runner-up margin. It returns a
+  suggestion for human confirmation, never an authentication or authorization
+  decision.
+- The optional audio adapter uses `pyannote/embedding` on clean,
+  single-speaker clips. It is intentionally separate from diarization: the
+  speech bridge must first provide a correctly segmented speaker clip.
+- The module includes SQLite/matching unit tests, but they have not been run on
+  the current Windows setup because it has no usable Python runtime. The demo
+  Mac still needs Python 3.10+, the model's accepted terms and local token,
+  real enrollment samples, and threshold calibration before this can be called
+  a verified feature.
+
+This module is a local storage and matching building block for William and
+Renzo's speaker-processing work. Ahmad's UI must show any result as a possible
+match and obtain confirmation before changing a visible speaker name.
+
+The separate computer companion now has an implemented Terminal prototype in
+`apps/companion/` (pairing, Keychain credentials, local approval, and registered
+document opening). See its [quickstart](apps/companion/README.md) and
+[implemented protocol](apps/companion/PROTOCOL.md), plus TECH_STACK sections
+19–23. Its loopback demo relay is a development fixture; the device dashboard,
+production relay, and screen-control capabilities remain future work. This
+handbook covers the local meeting workflow and does not replace that
+workstream's ownership boundaries.
 
 Audience: William, Renzo, Ahmad, and Arjun, including teammates new to the stack. This is the implementation handbook
 for the current Mac demo. Architecture diagrams and new API examples describe
@@ -300,27 +332,28 @@ The demo should prove one complete path before adding model switching.
 
 ## Current implementation boundary
 
-The repository already contains the web starter and local Next.js server. The
-macOS native model bridge and the browser WebGPU agent are the main integration
-work for the hackathon. Do not describe those paths as complete until they have
-been exercised on the demo Mac.
+The meeting UI and browser-local agent wiring are implemented. Real local
+reasoning output remains unverified and its live verification is paused by the
+user. Native speech, revisioned meeting persistence, and analysis-result APIs
+remain integration work. The separate Terminal companion has a verified
+file-opening flow; it is not the native speech worker.
 
 ## Implementation status: what is actually here
 
-This is the planning snapshot before remote commit `6efbb38`; see the integration
-update at the top for current status. Use the table to understand the changes,
-not to repeat completed implementation.
+Reconciled against the source after the companion integration. Treat the
+remaining architecture and schedule as targets, not evidence of completion.
 
-| Area | Current evidence in Hablabla | Required work |
+| Area | Current evidence in Hablabla | Remaining work |
 | --- | --- | --- |
-| Web server | `apps/web/package.json` starts Next.js on `127.0.0.1:3100` | Keep the same app and scripts |
-| UI domain | Incident reference app | Replace incidents with meeting data and transcript segments |
-| CopilotKit | `providers.tsx` still sets `runtimeUrl="/api/copilotkit"` | Register and exercise the browser agent |
-| Browser model | WebLLM is not in the web package dependencies | Add, pin, load in a worker, and test real generation |
-| Native speech | No Hablabla Swift bridge or speech routes yet | Create an independently launchable Mac worker and connect it |
-| Existing speech code | Core ML/MLX implementations exist in the separate LiveTranscriber project | Identify reusable libraries, document provenance, and prove Mac compatibility; do not assume an iOS implementation works on macOS |
-| Approval | Existing propose/approve/deny and read-back flow | Adapt incident validation and record tags to meetings |
-| Tests | Typecheck and test scripts exist | Add focused contract and workflow coverage for the new behavior |
+| Web server | Next.js at `127.0.0.1:3100` | Preserve the existing app and loopback restrictions |
+| Meeting UI | Meeting workspace at `/`; incident reference at `/reference`; imports/edits live in memory | Integrate revisioned storage, audio/transcript segments, and speaker labeling |
+| CopilotKit | Home uses a self-managed `WebGPUAgent`; reference/voice use the server runtime | Preserve provider separation; coordinate any new routes |
+| Browser model | WebLLM 0.2.85, worker, streaming/schema wiring, and recovery states exist | Successful live generation is unverified; do not resume testing until asked |
+| Native speech | No Hablabla speech worker or `/api/local` routes yet | William builds the worker; Renzo integrates its local API |
+| Existing speech code | Handbook identifies a separate LiveTranscriber project | Confirm reuse/provenance and macOS compatibility before claiming integration |
+| Approval | Meeting `MTG-...` IDs use the existing immutable proposal, approval, denial, and read-back gate | Live Ambiguous write verification and coordinated future domain migration |
+| Companion | `apps/companion/` pairs, stores credentials in Keychain, and opens registered files after Terminal approval | App packaging, permission checks, capture/control, device dashboard, and production relay |
+| Checks | 112 tests and all typechecks passed; Swift helper and web build passed during companion verification | Run checks for subsequent changes; fake inference/provider tests do not verify live models or writes |
 
 The current starter's chat and voice paths include remote model integrations.
 Installing dependencies or launching the starter does not make inference local.
@@ -597,10 +630,12 @@ The UUID placeholder above is explanatory, not a valid request. Use the actual
 ID returned by the server. Initialize the existing session using
 `GET /api/followups?session=1`; same-origin fetch then carries its HTTP-only cookie.
 
-Change the domain from `incidentId` to a real `meetingId` consistently in the
-frontend, request schemas, server validation, persisted proposal metadata,
-provider record markers, list filtering, and tests. The existing service calls
-`findIncident`, so replacing the UI label alone will not work.
+The current wire field is still named `incidentId`, but `subject()` in
+`followups.ts` now accepts meeting IDs matching `MTG-...` and preserves incident
+lookup for the reference app. The home page already passes its selected meeting
+ID through that field. Do not rename the field in one consumer alone. A future
+`meetingId` migration must coordinate frontend requests, server schemas,
+persisted metadata, record markers, filtering, compatibility, and tests.
 
 The server prepares the immutable approved payload and binds it to the session,
 workspace, expiration, and action key. Approval sends its proposal ID, not an
@@ -619,25 +654,28 @@ display from that API if an offline drafting mode is needed.
 
 ## Code ownership and suggested file layout
 
-Paths marked NEW are proposed; they do not exist yet.
+Paths marked PLANNED below do not exist in this checkout. Existing meeting
+analysis/review UI currently lives in `page.tsx`; split it into agreed components
+when Ahmad and Arjun integrate their work, preserving working behavior.
 
 ```text
 apps/web/src/
-  app/page.tsx                         meeting workspace (adapt existing)
-  app/api/local/capabilities/route.ts  NEW: native capabilities proxy
-  app/api/local/transcriptions/route.ts NEW: file transcription proxy
+  app/page.tsx                         existing meeting workspace, cards, chat, approval
+  app/api/local/capabilities/route.ts  PLANNED: native capabilities proxy
+  app/api/local/transcriptions/route.ts PLANNED: file transcription proxy
   app/api/followups/route.ts           existing approval endpoint
   components/providers.tsx            custom browser agent registration
-  components/generative-ui.tsx        typed meeting cards
-  components/workplace-followups.tsx  review/approve/decline controls
-  lib/meeting-types.ts                NEW: shared web domain schemas
-  lib/local-speech/client.ts          NEW: typed browser HTTP client
-  lib/server/speech-bridge.ts         NEW: Node-to-native client
-  lib/local-ai/model-runtime.ts       NEW: browser engine ownership
-  lib/local-ai/webgpu-agent.ts        NEW: AG-UI adapter
-  lib/local-ai/meeting-prompt.ts       NEW: context and prompts
-  workers/webllm.worker.ts            NEW: inference worker
-apps/macos-model-worker/              NEW: native Swift bridge
+  components/generative-ui.tsx        inherited reference-only cards
+  components/workplace-followups.tsx  inherited reference-only approval UI
+  lib/meeting-types.ts                PLANNED: shared web domain schemas
+  lib/local-speech/client.ts          PLANNED: typed browser HTTP client
+  lib/server/speech-bridge.ts         PLANNED: Node-to-native client
+  lib/local-ai/model-runtime.ts       existing browser engine ownership
+  lib/local-ai/webgpu-agent.ts        existing AG-UI adapter
+  lib/local-ai/meeting-prompt.ts       existing context and prompts
+  workers/webllm.worker.ts            existing inference worker
+apps/macos-model-worker/              PLANNED: native speech bridge (William)
+apps/companion/                       existing computer companion (separate scope)
 ```
 
 Keep native imports and credentials in server/native modules. Browser code

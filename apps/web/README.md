@@ -2,7 +2,7 @@
 
 The home page is Hablabla's meeting workspace, built with Next.js, React, CopilotKit and a WebLLM worker. The inherited incident demo remains at `/reference`; the optional voice example remains at `/voice`.
 
-**Handoff status:** UI implementation, 97 automated tests, and the production build are complete. Live local-AI generation verification is deferred at the user's request after an interrupted browser run. Ambiguous live writes remain unverified. The separate Mac companion/device dashboard is planned work owned by the user; see [TECH_STACK.md](../../TECH_STACK.md) for completed work, file ownership, and the proposed integration protocol. Do not replace the meeting UI or resume GPU testing as part of companion work.
+**Handoff status:** UI implementation, 97 automated tests, and the production build are complete. Live local-AI generation verification is deferred at the user's request after an interrupted browser run. Ambiguous live writes remain unverified. The separate Mac companion now has a Terminal prototype in `apps/companion/`; the device dashboard and production relay remain planned work; see [TECH_STACK.md](../../TECH_STACK.md) for completed work, file ownership, and the proposed integration protocol. Do not replace the meeting UI or resume GPU testing as part of companion work.
 
 ## Run locally
 
