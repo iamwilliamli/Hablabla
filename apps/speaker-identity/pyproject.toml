@@ -9,6 +9,7 @@ description = "Local, consent-based speaker profile storage and matching for Hab
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.26",
+  "omegaconf>=2.3",
   "pyannote.audio>=3.3",
 ]
 
