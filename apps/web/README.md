@@ -1,3 +1,49 @@
+# Hablabla — private meeting workspace
+
+The home page is Hablabla's meeting workspace, built with Next.js, React, CopilotKit and a WebLLM worker. The inherited incident demo remains at `/reference`; the optional voice example remains at `/voice`.
+
+**Handoff status:** UI implementation, 97 automated tests, and the production build are complete. Live local-AI generation verification is deferred at the user's request after an interrupted browser run. Ambiguous live writes remain unverified. The separate Mac companion/device dashboard is planned work owned by the user; see [TECH_STACK.md](../../TECH_STACK.md) for completed work, file ownership, and the proposed integration protocol. Do not replace the meeting UI or resume GPU testing as part of companion work.
+
+## Run locally
+
+Use Node.js 22+ and run from the repository root:
+
+```bash
+npm ci
+npm run dev:web
+```
+
+Open http://127.0.0.1:3100 in a current Chrome browser with WebGPU support. The home page requires **no model API key**. Click **Load local model** in the assistant panel to download and initialize Llama 3.2 3B. The first download can take several minutes. The smaller 1B model is offered after a load failure. There is no cloud inference fallback.
+
+Choose a sample meeting or use **Add meeting** to paste a transcript. The first sample includes an explicitly labeled, authored example recap. **Analyze locally** replaces it with validated model output. Chat uses the currently selected transcript; questions are independent and do not include earlier chat turns. To keep within the model context window, requests contain a bounded UTF-8 excerpt. Long meetings should be shortened before analysis; the app does not claim to summarize unseen content.
+
+Imported meetings, recaps and chat are kept in memory for this session. Download the recap before refreshing. No transcript is persisted by the backend. Model artifacts are cached by WebLLM in the browser.
+
+## Review and save
+
+Set `AMBIGUOUS_API_KEY` in root `.env` and restart the app to enable optional persistent tasks. `WEB_APPROVAL_DIR` can select the approval metadata directory (default `.data/web-approvals`).
+
+A generated suggestion is local. **Continue to approval** explicitly sends only the task title, description, owner and due date to the backend. The source quote and transcript are excluded. The next view shows the exact server-held fields and workspace; **Approve & save** executes the write. **Decline** creates nothing. Saved status requires the provider's real ID and matching read-back. The existing session binding, expiry, identity checks, decision records and idempotency guard apply to meeting IDs as well as the inherited incident IDs.
+
+## Accessibility and checks
+
+The workspace has native buttons and dialogs, labeled inputs, keyboard-operated tabs (arrows, Home and End), a skip link, visible focus indicators, status announcements, reduced-motion support and responsive layouts. Dialogs use the browser's focus trap and return focus to the invoking control.
+
+```bash
+npm run verify
+npm run build --workspace web
+```
+
+Unit tests cover UTF-8 context bounds, schema and evidence rejection, AG-UI streaming, meeting association, and meeting approval/idempotency. Actual GPU model loading, response quality and Ambiguous connectivity require verification on the demo hardware and account; automated tests use a fake provider and do not write external tasks.
+
+The pinned CopilotKit release exposes `selfManagedAgents` for this local hackathon integration and emits a licensing notice. Check CopilotKit's production licensing before deployment. This does not add a hosted inference dependency or require sending meeting content to Intelligence.
+
+Implementation references: [WebLLM worker API](https://github.com/mlc-ai/web-llm), [CopilotKit custom agents](https://docs.copilotkit.ai/ag-ui/concepts/agents), and the root [technology stack](../../TECH_STACK.md).
+
+---
+
+The following is the preserved setup guide for the inherited reference app at `/reference`.
+
 # An agent inside your web app
 
 **OpenAI + CopilotKit React + Ambiguous AI**

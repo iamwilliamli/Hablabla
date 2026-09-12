@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Local environment and credentials (keep example files shareable)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Build output and caches
+.next/
+.expo/
+dist/
+out/
+.cache/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+expo-env.d.ts
+
+# Local application data
+.data/
+
+# Test output
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Logs
+*.log
+
+# Local deployment state
+.vercel/
+
+# OS and editor files
+.DS_Store
+._*
+Thumbs.db
+.idea/
+*.swp
+*.swo
+*~

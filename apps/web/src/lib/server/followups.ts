@@ -28,8 +28,12 @@ const storedSchema = z.object({
 });
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
-const marker = (incidentId: string) =>
-  `agents-everywhere:${findIncident(incidentId).id}`;
+function subject(id: string) {
+  if (/^MTG-[a-z0-9-]{1,80}$/.test(id)) return { id, label: `Meeting: ${id}` };
+  const incident = findIncident(id);
+  return { id: incident.id, label: `Sample incident: ${incident.id} — ${incident.title}` };
+}
+const marker = (id: string) => `agents-everywhere:${subject(id).id}`;
 function fileExists(error: unknown) {
   return error instanceof Error && "code" in error && error.code === "EEXIST";
 }
@@ -56,7 +60,7 @@ export class FollowupService {
   }
   async propose(session: string, input: unknown): Promise<Proposal> {
     const draft = draftSchema.parse(input);
-    const incident = findIncident(draft.incidentId);
+    const incident = subject(draft.incidentId);
     const identity = await this.workplace.identity();
     const actionKey = hash(
       JSON.stringify([
@@ -70,7 +74,7 @@ export class FollowupService {
       id: randomUUID(),
       incidentId: incident.id,
       title: draft.title,
-      description: `${draft.details}\n\nSample incident: ${incident.id} — ${incident.title}\n${marker(incident.id)}\nfollowup:${actionKey}`,
+      description: `${draft.details}\n\n${incident.label}\n${marker(incident.id)}\nfollowup:${actionKey}`,
       workspaceId: identity.workspaceId,
       identityName: identity.name,
       identityId: identity.id,

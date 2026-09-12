@@ -17,7 +17,7 @@ const command = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("deny"), proposalId: z.uuid() }).strict(),
 ]);
 const setup =
-  "Set AMBIGUOUS_API_KEY in root .env and restart the web app. Select sample incidents now; saving and retrieval require a real Ambiguous workspace.";
+  "Task storage is unavailable. Configure AMBIGUOUS_API_KEY in root .env and restart the web app to enable saving and retrieval.";
 
 async function closeConnection(connection: { close(): Promise<void> }) {
   try {

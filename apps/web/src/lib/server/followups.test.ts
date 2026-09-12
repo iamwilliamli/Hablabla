@@ -77,6 +77,23 @@ test("a proposal performs no write; approval writes exactly the displayed fields
   assert.ok(provider.reads > 0);
 });
 
+test("meeting proposals preserve approval and idempotency without receiving a transcript", async (t) => {
+  const { service, provider } = await fixture(t);
+  const draft = { incidentId: "MTG-launch", title: "Review onboarding", details: "Owner: Sam\nDue: Tuesday" };
+  const proposal = await service.propose(session, draft);
+  assert.equal(provider.creates, 0);
+  assert.ok(proposal.description.includes("Meeting: MTG-launch"));
+  const saved = await service.approve(session, proposal.id);
+  assert.equal(saved.description, proposal.description);
+  assert.equal((await service.list("MTG-launch"))[0].id, saved.id);
+  await service.approve(session, proposal.id);
+  assert.equal(provider.creates, 1);
+  const denied = await service.propose(session, { ...draft, title: "Another suggestion" });
+  await service.deny(session, denied.id);
+  await assert.rejects(service.approve(session, denied.id), /declined/);
+  assert.equal(provider.creates, 1);
+});
+
 test("missing, foreign-session, denied, and expired proposals cannot write", async (t) => {
   const { service, provider, expire } = await fixture(t);
   await assert.rejects(service.approve(session, "missing"));
