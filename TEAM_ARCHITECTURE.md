@@ -2,6 +2,24 @@
 
 Last updated: September 12, 2026
 
+### Integration update from remote commit `6efbb38`
+
+The meeting workspace, WebGPU agent/worker registration, and meeting-ID approval
+support have now been implemented in the remote workstream and merged locally.
+The earlier implementation snapshot and migration instructions below describe
+the starting point; inspect current source before doing those tasks again.
+Read [current implementation status](TECH_STACK.md#implementation-status-and-coordination--september-12-2026)
+for the authoritative merged status and verification limits.
+
+Live local-AI generation verification is deferred by the user's instruction.
+Do not resume model downloads or GPU experiments from this handbook's schedule
+unless asked. Native speech/pyannote and persisted meeting/analysis management
+remain integration work. Existing meeting imports and chats are session-only.
+
+The separate computer companion workstream and reserved `apps/companion/` paths
+are documented in TECH_STACK sections 19–23. This handbook covers the local
+meeting workflow and does not replace that workstream's ownership boundaries.
+
 Audience: William, Renzo, Ahmad, and Arjun, including teammates new to the stack. This is the implementation handbook
 for the current Mac demo. Architecture diagrams and new API examples describe
 the target, not functionality already implemented. Start with the summary,
@@ -288,6 +306,10 @@ work for the hackathon. Do not describe those paths as complete until they have
 been exercised on the demo Mac.
 
 ## Implementation status: what is actually here
+
+This is the planning snapshot before remote commit `6efbb38`; see the integration
+update at the top for current status. Use the table to understand the changes,
+not to repeat completed implementation.
 
 | Area | Current evidence in Hablabla | Required work |
 | --- | --- | --- |
