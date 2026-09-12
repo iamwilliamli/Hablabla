@@ -22,8 +22,13 @@ Requirements: macOS 15+, Apple Silicon, Swift 6.2, Node.js 22+, and FFmpeg.
 cd apps/macos-model-worker
 ./scripts/build-release.sh
 cd ../..
-cp .env.example .env
+# Only on a new checkout without .env:
+# cp .env.example .env
 ```
+
+The build script uses the selected Xcode installation (`xcode-select -p`);
+set `DEVELOPER_DIR` explicitly to use another installed Xcode. Preserve existing
+credentials when adding speech settings to `.env`.
 
 Use the Xcode build script for the runnable worker. MOSS depends on MLX Metal
 resources that a plain command-line `swift build` does not package.
@@ -100,3 +105,22 @@ This diagnostic tool is separate from the team's product frontend.
 The [demo handoff](../../dev-docs/demo-speech-handoff.md) records the current LAN
 address and API examples, and explains how to run the teammate-owned frontend
 and a separately configured speech gateway together on the demo Mac.
+
+## Local test-branch verification — September 12, 2026
+
+On Arjun's Apple Silicon Mac, the release worker built with the selected regular
+Xcode installation. The `@main` entry point is in `Worker.swift` to avoid Xcode's
+special handling of files named `main.swift`.
+
+Nemotron 3.5 multilingual (2,240 ms) and MOSS 4-bit both transcribed a synthetic
+5.6-second English recording through the actual gateway: WebSocket PCM for
+Nemotron, then multipart upload and job polling for MOSS. Both recognized the
+sentence, with the product name “Hablabla” rendered as “Ablabla.” This checks
+local inference and transport, not clinical accuracy or speaker separation.
+Parakeet was not downloaded or tested in this run.
+
+For this local setup, the gateway is `http://127.0.0.1:8765` and Speech Lab is
+`http://127.0.0.1:18766`. Both are terminal processes, not an installed background
+service; restart them with the commands above after stopping them or rebooting.
+Private `.env` configuration, downloaded weights, and build products stay outside
+Git. No public deployment or LAN exposure was enabled.
