@@ -200,11 +200,12 @@ The following is an inventory, not the stable external contract for William's sp
 | GET/POST/OPTIONS `/api/mobile-copilotkit/*` | Mobile template runtime routes |
 | POST `/api/search` | Inherited search example; body contains `query` and optional `results` |
 | POST `/api/realtime-token` | Inherited voice example returning a temporary client credential, not a Parakeet ticket |
+| GET/POST `/api/research` | Approval-gated Exa research agent: session-bound plan, explicit approval, bounded retrieval, citation-validated brief; [contract and handoff](research-agent.md) |
 | GET/POST `/api/devices` | Same-Mac companion snapshot broker: browser session pairing, native polling, explicit image sharing, authenticated short-lived media; [local contract](../apps/companion/LOCAL_DASHBOARD.md) |
 
 Source code alone does not establish that these templates have been publicly released. Each requires authentication, authorization, and data-handling agreements before external deployment.
 
-The `/care` demo and `/api/care/*` drafts were removed at the user's request. The medical scenario remains only in [design section 24](../TECH_STACK.md#24-doctor-and-patient-assistant--proposed-design). Frontend integration uses the generic transcription interfaces in this document; William does not implement the medical frontend, reports, or browser agent.
+The `/care` demo and `/api/care/*` drafts were removed at the user's request. The medical scenario remains only in [design section 24](../TECH_STACK.md#24-doctor-and-patient-assistant--proposed-design). The research step of that design now has a backend at `/api/research` (see above); it receives a reviewed public question only, never transcripts or records. Frontend integration uses the generic transcription interfaces in this document; William does not implement the medical frontend, reports, or browser agent.
 
 Companion has a separate pairing/connect/poll/heartbeat/authorize/events/revoke protocol; see the [Companion protocol](../apps/companion/PROTOCOL.md). Its current relay is a development fixture, not a route on the speech port, and does not implement a public device-management API.
 

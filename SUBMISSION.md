@@ -32,6 +32,12 @@ Choose your city on the [global event page](https://aitinkerers.org/hackathons/g
 - Clinical guardrails in the local agent prompt: generic speakers remain
   unidentified, generated notes must stay grounded in the transcript, and the
   clinician reviews the draft before using or saving follow-ups.
+- A **Research** tab and `/api/research` backend: on an explicit click, a small
+  OpenAI model scans the visit transcript for medical topics (each with a
+  verbatim quote) and suggests population-level questions; the clinician
+  reviews the exact Exa queries and approves or declines before any search;
+  the evidence brief labels source types and access limits and verifies every
+  citation against retrieved passages. See `dev-docs/research-agent.md`.
 
 ## Title and description
 
@@ -62,11 +68,16 @@ unstated diagnosis, treatment, or instruction.
   context, streaming conversation, and UI integration.
 - **Ambiguous AI** is an optional persistence destination for a follow-up after
   the clinician reviews the exact fields and explicitly approves the write.
+- **Exa** performs the approved public-web evidence search in the Research tab
+  (`EXA_API_KEY`, server-side only).
+- **OpenAI** runs the explicit transcript scan (`gpt-5.4-mini`) and, only when
+  `RESEARCH_SYNTHESIS_PROVIDER=openai` is set, drafts citation-checked findings.
 
 The primary visit analysis uses WebLLM in the browser. The transcription backend
 uses Parakeet and MOSS locally; these are project infrastructure rather than
-sponsor integrations. OpenAI, OpenRouter, Exa, Auth0, and CopilotKit Intelligence
-are not required by this submitted workflow.
+sponsor integrations. OpenRouter, Auth0, and CopilotKit Intelligence are not
+required by this submitted workflow; the Research tab is optional and degrades
+to an unavailable state without its keys.
 
 ## Evidence for the judging criteria
 

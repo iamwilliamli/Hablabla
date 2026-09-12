@@ -7,7 +7,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./shared": "./src/shared.ts",
-    "./mobile-finance-prompt": "./src/mobile-finance-prompt.ts"
+    "./mobile-finance-prompt": "./src/mobile-finance-prompt.ts",
+    "./research": "./src/research/index.ts",
+    "./research-contract": "./src/research/contract.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

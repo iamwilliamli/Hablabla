@@ -74,6 +74,29 @@ Maya Chen [12:30]: Let's pause new feature work until the existing issues are re
 
 Sam Taylor [17:00]: We still need to decide how to measure whether the new navigation is easier to use.`,
   },
+  {
+    id: "MTG-consult",
+    title: "Blood pressure review (fictional consultation)",
+    date: "September 11, 2026",
+    time: "2:30 PM",
+    duration: "12 min",
+    category: "Health",
+    participants: ["Dr Priya Nair", "Jordan Lee"],
+    sample: true,
+    transcript: `Dr Priya Nair [00:00]: Thanks for coming in. You mentioned your home blood pressure readings have been high?
+
+Jordan Lee [00:18]: Yes, mostly around 150 over 95 in the mornings for the last month. I'm taking amlodipine 5 milligrams.
+
+Dr Priya Nair [01:02]: Any headaches, chest pain, or swelling in your ankles?
+
+Jordan Lee [01:15]: Some ankle swelling in the evenings, no chest pain.
+
+Dr Priya Nair [01:40]: Ankle swelling can be a side effect of amlodipine. We could add a second medication instead of increasing the dose. I'd like to check your kidney function and electrolytes first.
+
+Jordan Lee [02:20]: Is there anything I can change day to day?
+
+Dr Priya Nair [02:30]: Reducing salt and regular aerobic exercise both help. Let's book bloods this week and review in two weeks.`,
+  },
 ];
 
 export function transcriptEntries(transcript: string) {

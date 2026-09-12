@@ -40,6 +40,20 @@ a clinician corrects them; the app does not infer who is the doctor or patient.
 
 Imported meetings, recaps and chat are kept in memory for this session. Download the recap before refreshing. No transcript is persisted by the backend. Model artifacts are cached by WebLLM in the browser.
 
+## Research a visit question
+
+Open a visit and choose the **Research** tab. **Scan transcript with OpenAI**
+sends the transcript (up to 16,000 characters) to a small OpenAI model only when
+clicked; it reports whether medical topics were discussed, quotes the transcript
+verbatim for each topic, and suggests population-level research questions.
+Pick or edit a question, review the exact Exa queries and disclosures, then
+**Approve and research** or **Decline**. The brief lists sources with heuristic
+type and access labels, verified citations, conflicts, unanswered questions,
+and limitations. It is reference material for clinician review, never advice.
+Configure `EXA_API_KEY` (search) and `OPENAI_API_KEY` (scan) in root `.env`;
+set `RESEARCH_SYNTHESIS_PROVIDER=openai` to enable generated findings. Contract
+and limits: [dev-docs/research-agent.md](../../dev-docs/research-agent.md).
+
 ## Review and save
 
 Set `AMBIGUOUS_API_KEY` in root `.env` and restart the app to enable optional persistent tasks. `WEB_APPROVAL_DIR` can select the approval metadata directory (default `.data/web-approvals`).

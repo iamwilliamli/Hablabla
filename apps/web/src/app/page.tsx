@@ -1,6 +1,7 @@
 "use client";
 
 import "./workspace.css";
+import "@/components/research-panel.css";
 
 import {
   useCallback,
@@ -17,6 +18,7 @@ import { BrandMark, Icon } from "@/components/icons";
 import { MeetingDialog } from "@/components/meeting-dialog";
 import { ModelStatus, phaseLabels } from "@/components/model-status";
 import { SpeechInput } from "@/components/speech-input";
+import { ResearchPanel } from "@/components/research-panel";
 import {
   RecordingsLibrary,
   WorkspaceOverview,
@@ -41,7 +43,7 @@ import type {
   WorkplaceTask,
 } from "@/lib/followup-types";
 
-type Tab = "overview" | "transcript" | "actions";
+type Tab = "overview" | "transcript" | "actions" | "research";
 type WorkspaceView = "overview" | "recordings" | "meeting" | "settings";
 type Review = {
   action: MeetingResult["actions"][number];
@@ -52,6 +54,7 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: "overview", label: "Summary", icon: "grid" },
   { id: "transcript", label: "Transcript", icon: "document" },
   { id: "actions", label: "Action items", icon: "tasks" },
+  { id: "research", label: "Research", icon: "search" },
 ];
 
 export default function Home() {
@@ -979,6 +982,7 @@ export default function Home() {
                   </div>
                 </>
               )}
+              {tab === "research" && <ResearchPanel meeting={meeting} />}
               {tab === "actions" && (
                 <>
                   <div className="section-heading">

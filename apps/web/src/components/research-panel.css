@@ -1,0 +1,346 @@
+/* Research tab: scan → question → plan approval → evidence brief.
+   Reuses workspace tokens (--ink, --line, --green) and .button/.evidence. */
+.research-panel {
+  display: grid;
+  gap: 16px;
+}
+.rp-card {
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  display: grid;
+  gap: 12px;
+}
+.rp-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.rp-step h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.rp-step p {
+  font-size: 13px;
+  color: #68765d;
+}
+.rp-step-number {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #eef2e5;
+  color: #5a7545;
+  font-size: 12px;
+  font-weight: 600;
+}
+.rp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.rp-muted {
+  font-size: 12px;
+  color: #7a8a6d;
+}
+.rp-note {
+  font-size: 12px;
+  color: #657852;
+  background: #f0f3e9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+.rp-alert {
+  font-size: 12px;
+  color: #7a3b2e;
+  background: #fbeeea;
+  border: 1px solid #efcfc6;
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+.rp-label {
+  font-size: 12px;
+  font-weight: 550;
+}
+.research-panel textarea,
+.research-panel input {
+  width: 100%;
+  border: 1px solid #d9dfd3;
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 13px;
+  background: #fff;
+  color: var(--ink);
+}
+.research-panel textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+.rp-inline {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.rp-inline label {
+  font-size: 12px;
+  color: #68765d;
+}
+.rp-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.rp-verdict.yes {
+  color: #355b43;
+}
+.rp-verdict.no {
+  color: #68765d;
+}
+.rp-summary {
+  font-size: 13px;
+}
+.rp-detection {
+  display: grid;
+  gap: 12px;
+}
+.rp-topics {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.rp-topics li {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.rp-topics blockquote,
+.rp-brief blockquote {
+  font-size: 12px;
+  color: #68765d;
+  border-left: 2px solid #cdd8c3;
+  padding-left: 10px;
+  margin-top: 4px;
+}
+.rp-brief blockquote footer {
+  margin-top: 4px;
+  font-size: 11px;
+}
+.rp-chip {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2e5;
+  color: #5a7545;
+  font-size: 11px;
+  font-weight: 550;
+  text-transform: capitalize;
+}
+.rp-chip.interp {
+  background: #fbf2df;
+  color: #8a6420;
+}
+.rp-suggestions h4,
+.rp-findings h4,
+.rp-list h4,
+.rp-sources h4 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #68765d;
+  margin-bottom: 8px;
+}
+.rp-suggestions ul,
+.rp-list ul {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.rp-suggestions li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.rp-suggestions li > div {
+  display: grid;
+  gap: 3px;
+}
+.rp-flags {
+  list-style: disc;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #7a3b2e;
+  display: grid;
+  gap: 2px;
+}
+.rp-flagbox {
+  font-size: 12px;
+  background: #fbf2df;
+  border: 1px solid #ecd9ad;
+  border-radius: 8px;
+  padding: 9px 12px;
+  display: grid;
+  gap: 6px;
+}
+.rp-queries {
+  display: grid;
+  gap: 8px;
+  padding-left: 22px;
+  font-size: 13px;
+}
+.rp-queries li {
+  display: grid;
+  gap: 3px;
+}
+.rp-queries code {
+  font:
+    12px ui-monospace,
+    monospace;
+  background: #f4f6ef;
+  border-radius: 6px;
+  padding: 6px 8px;
+  overflow-wrap: anywhere;
+}
+.rp-disclosures {
+  list-style: disc;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #68765d;
+  display: grid;
+  gap: 4px;
+}
+.rp-list li {
+  font-size: 13px;
+}
+.rp-findings {
+  display: grid;
+  gap: 10px;
+}
+.rp-finding {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+}
+.rp-finding header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.rp-finding > p {
+  font-size: 13px;
+}
+.rp-sources {
+  display: grid;
+  gap: 10px;
+}
+.rp-source {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+}
+.rp-source header {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 13px;
+  font-weight: 550;
+}
+.rp-source header a,
+.rp-brief blockquote a {
+  color: var(--green);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+.rp-source-id {
+  font:
+    11px ui-monospace,
+    monospace;
+  color: #7a8a6d;
+}
+.rp-source-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: #68775b;
+}
+@media (max-width: 700px) {
+  .rp-inline {
+    grid-template-columns: 1fr;
+  }
+  .rp-suggestions li {
+    flex-direction: column;
+  }
+}
+.dark-theme .rp-card,
+.dark-theme .rp-topics li,
+.dark-theme .rp-suggestions li,
+.dark-theme .rp-finding,
+.dark-theme .rp-source,
+.dark-theme .research-panel textarea,
+.dark-theme .research-panel input {
+  background: var(--tint);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.dark-theme .rp-note,
+.dark-theme .rp-queries code,
+.dark-theme .rp-step-number,
+.dark-theme .rp-chip {
+  background: #26312a;
+  color: var(--subtle);
+  border-color: var(--line);
+}
+.dark-theme .rp-step p,
+.dark-theme .rp-muted,
+.dark-theme .rp-inline label,
+.dark-theme .rp-disclosures,
+.dark-theme .rp-source-facts,
+.dark-theme .rp-topics blockquote,
+.dark-theme .rp-brief blockquote,
+.dark-theme .rp-suggestions h4,
+.dark-theme .rp-findings h4,
+.dark-theme .rp-list h4,
+.dark-theme .rp-sources h4,
+.dark-theme .rp-verdict.no {
+  color: var(--subtle);
+}
+.dark-theme .rp-verdict.yes {
+  color: var(--green);
+}
+.dark-theme .rp-alert {
+  background: #3a2622;
+  border-color: #5a3a33;
+  color: #f2c9bf;
+}
+.dark-theme .rp-flagbox,
+.dark-theme .rp-chip.interp {
+  background: #3a3220;
+  border-color: #5a4d2a;
+  color: #eed9a3;
+}
