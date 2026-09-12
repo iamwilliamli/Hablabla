@@ -10,6 +10,7 @@ Start with the [hackathon homepage](../README.md), choose a [template](../README
 | [Setup](setup.md) | Getting from clone to a first Slack or web reply |
 | [Channels](channels.md) | How managed delivery works and Slack/Teams setup order |
 | [Surfaces](surfaces.md) | Retained Slack, web, mobile, and web voice entry points |
+| [Backend API reference](backend-api.md) | Implemented endpoints, authentication, request/response examples, and internal prototype versus public deployment boundaries |
 | [Speech API contract](speech-api-frontend.md) ([OpenAPI](speech-api.openapi.yaml)) | Exact Parakeet streaming and MOSS upload contract for frontend integration |
 | [React Native template](../apps/mobile/README.md) | Expo setup, runtime URL choices, native tool rendering, and approval boundaries |
 | [Model switching](model-switching.md) | Choosing OpenAI or OpenRouter and understanding provider precedence |

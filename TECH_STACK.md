@@ -841,6 +841,15 @@ product direction and acceptance targets; it does not establish implementation,
 clinical validation, or regulatory compliance. It does not change current team
 ownership or authorize frontend implementation.
 
+**Scope decision — September 12, 2026:** The user requested removal of the
+uncommitted `/care` prototype. This medical workflow is documentation-only;
+there is no `/care` page or `/api/care/*` contract. William provides the existing
+general transcription capability and its integration documentation only.
+Frontend capture, transcript display, report UI, browser agents, and provider
+wiring remain with the frontend owners. Use the
+[speech frontend contract](dev-docs/speech-api-frontend.md) for transcription
+integration; medical reports, research, and translation remain proposed work.
+
 ### Purpose
 
 Help doctors and patients get more value from a consultation without giving up
