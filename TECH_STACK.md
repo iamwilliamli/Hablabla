@@ -89,6 +89,12 @@ William does not own the frontend. Do not modify frontend code for his tasks unl
 
 ## 1. Meeting-workspace summary
 
+An additional product direction is a privacy-first assistant for doctors and
+patients: private consultation audio becomes a clinician-reviewed report,
+with research support for the doctor and plain-language, multilingual
+explanations for the patient. See [section 24](#24-doctor-and-patient-assistant--proposed-design)
+for the proposed workflow and data boundaries.
+
 Hablabla is a private meeting follow-through agent with a web frontend and a
 local desktop backend. The complete application runs on the user's macOS or
 Windows computer in the long-term architecture. The current hackathon backend
@@ -778,3 +784,74 @@ Before merging companion integration, the assigned owners should record:
 First end-to-end demo: start the companion from Terminal, pair the intended Mac, select it in `/devices`, request a registered presentation, approve locally, and observe the actual file opening plus its correlated result. A denied request must open nothing. A replayed command must not repeat the action. An optional screen capture requires its own permission and shows a fresh timestamp.
 
 The meeting workspace must still open at `/`, the reference routes must remain available, and the existing typecheck/tests/build must continue to pass. **Do not resume deferred local-meeting AI verification or modify the user's companion implementation as part of an unrelated UI or documentation change.**
+
+## 24. Doctor and patient assistant — proposed design
+
+**Design idea, recorded September 12, 2026.** This section captures a proposed
+product direction and acceptance targets; it does not establish implementation,
+clinical validation, or regulatory compliance. It does not change current team
+ownership or authorize frontend implementation.
+
+### Purpose
+
+Help doctors and patients get more value from a consultation without giving up
+the privacy of their spoken conversation. The agent turns the encounter into
+a useful report, researches questions to support the doctor, and helps the
+patient understand the discussion and next steps in their preferred language.
+
+### Proposed workflow
+
+1. **Private conversation:** explain recording and processing, obtain participant
+   consent, and transcribe locally. Support pausing recording and correcting
+   speaker attribution or transcription before analysis.
+2. **Structured encounter draft:** extract the concerns discussed, reported
+   history, clinician explanations, agreed next steps, and unresolved questions.
+   Link statements to transcript evidence; mark missing or uncertain details
+   rather than filling them in.
+3. **Research and analysis for the doctor:** identify questions worth investigating,
+   retrieve relevant public medical references, and summarize evidence with
+   source links, dates, limitations, and its relationship to the question.
+   Keep encounter facts, retrieved evidence, and agent interpretations distinct.
+   The doctor reviews the result and makes clinical decisions.
+4. **Two report views:** prepare a professional report for the doctor and a
+   plain-language explanation for the patient from the same reviewed facts.
+   Patient content explains terminology, what was discussed, agreed next steps,
+   and questions to bring to follow-up. It must not invent a diagnosis or change
+   the clinician's instructions.
+5. **Cross-language understanding:** preserve the source-language text alongside
+   the translation and let the patient choose a report language. Flag ambiguous
+   wording and unverified translations, especially medication names, doses,
+   units, negation, and timing, for clinician or interpreter review. Supported
+   languages and accuracy remain to be validated; live interpretation is a
+   separate future capability.
+6. **Review and release:** label generated reports as drafts until the doctor
+   reviews them. Allow correction and an explicit choice of report, recipient,
+   and export/share action. A report can be shared without sharing its audio.
+
+### Privacy and research boundary
+
+- Raw audio and full transcripts stay on the endpoint by default. Audio retention
+  is an explicit choice, separate from retaining a report; the design should
+  support deletion and a visible retention policy.
+- Reports and translations remain sensitive patient information. Producing a
+  report does not automatically make it anonymous or safe to publish.
+- Public web research uses a locally prepared, minimized question without direct
+  patient identifiers, raw audio, or a full transcript. Review the exact outbound
+  query before sending; removing names alone is not sufficient if rare details
+  could identify a patient. If a useful query cannot be safely minimized, keep
+  it local or ask the doctor to reformulate it.
+- Any future remote analysis of patient information requires a separately
+  disclosed and authorized data flow. There is no silent cloud fallback.
+- Research results are reference material for review. They cannot trigger
+  prescriptions, treatment changes, or automatic patient messaging.
+
+### First demonstration and acceptance targets
+
+Use a fictional consultation with a language difference between doctor and
+patient. Show local transcription, a corrected encounter draft, a reviewed
+public research query with cited results, and doctor/patient report views with
+an aligned translation. Demonstrate that declining external research sends no
+query and that exporting a report excludes the raw audio. Verify factual
+grounding, translation of critical details, and the actual outbound payload
+before describing this flow as working. Clinical deployment and medical-record
+integration require separate evaluation and scope decisions.
