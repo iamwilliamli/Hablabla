@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
 } from "react";
@@ -15,6 +16,11 @@ import { useAgent, useAgentContext } from "@copilotkit/react-core/v2";
 import { BrandMark, Icon } from "@/components/icons";
 import { MeetingDialog } from "@/components/meeting-dialog";
 import { ModelStatus, phaseLabels } from "@/components/model-status";
+import {
+  RecordingsLibrary,
+  WorkspaceOverview,
+  WorkspaceSettings,
+} from "@/components/workspace-sections";
 import {
   sampleMeetings,
   transcriptEntries,
@@ -35,13 +41,14 @@ import type {
 } from "@/lib/followup-types";
 
 type Tab = "overview" | "transcript" | "actions";
+type WorkspaceView = "overview" | "recordings" | "meeting" | "settings";
 type Review = {
   action: MeetingResult["actions"][number];
   index: number;
   proposal?: Proposal;
 };
 const tabs: { id: Tab; label: string; icon: string }[] = [
-  { id: "overview", label: "Overview", icon: "grid" },
+  { id: "overview", label: "Summary", icon: "grid" },
   { id: "transcript", label: "Transcript", icon: "document" },
   { id: "actions", label: "Action items", icon: "tasks" },
 ];
@@ -51,6 +58,10 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState(sampleMeetings[0].id);
   const meeting = meetings.find((item) => item.id === selectedId)!;
   const [tab, setTab] = useState<Tab>("overview");
+  const [view, setView] = useState<WorkspaceView>("overview");
+  const [libraryCategory, setLibraryCategory] = useState("All");
+  const [textSize, setTextSize] = useState(14);
+  const [darkTheme, setDarkTheme] = useState(false);
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dialog, setDialog] = useState<"import" | "edit" | "privacy" | null>(
@@ -90,6 +101,15 @@ export default function Home() {
       .toLowerCase()
       .includes(search.toLowerCase()),
   );
+  const allRecaps = { ...exampleRecaps, ...recaps };
+  const viewTitle =
+    view === "overview"
+      ? "Overview"
+      : view === "recordings"
+        ? "Recordings"
+        : view === "settings"
+          ? "Settings"
+          : meeting.title;
 
   useAgentContext({
     description:
@@ -102,6 +122,16 @@ export default function Home() {
   });
   useEffect(() => {
     void modelRuntime.check();
+  }, []);
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("hablabla-theme");
+    setDarkTheme(
+      savedTheme
+        ? savedTheme === "dark"
+        : window.matchMedia("(prefers-color-scheme: dark)").matches,
+    );
+    const savedTextSize = Number(localStorage.getItem("hablabla-text-size"));
+    if (savedTextSize >= 12 && savedTextSize <= 18) setTextSize(savedTextSize);
   }, []);
   useEffect(() => {
     const subscription = agent.subscribe({
@@ -156,6 +186,7 @@ export default function Home() {
     agent.setState({});
     selectedRef.current = id;
     setSelectedId(id);
+    setView("meeting");
     setTab("overview");
     setError("");
     setNotice("");
@@ -373,9 +404,16 @@ export default function Home() {
     setTab(tabs[next].id);
     document.getElementById(`tab-${tabs[next].id}`)?.focus();
   }
+  function updateDarkTheme(enabled: boolean) {
+    setDarkTheme(enabled);
+    localStorage.setItem("hablabla-theme", enabled ? "dark" : "light");
+  }
 
   return (
-    <div className="hb-app">
+    <div
+      className={`hb-app ${darkTheme ? "dark-theme" : ""}`}
+      style={{ "--text-adjust": `${textSize - 14}px` } as CSSProperties}
+    >
       <a className="skip-link" href="#meeting-content">
         Skip to meeting content
       </a>
@@ -395,24 +433,35 @@ export default function Home() {
         >
           <span className="workspace-avatar">H</span>
           <span>
-            Personal workspace<small>Just for you</small>
+            Private workspace<small>On this device</small>
           </span>
           <Icon name="down" size={14} />
         </button>
         <nav className="primary-nav" aria-label="Main">
           <button
-            className={tab !== "actions" ? "active" : ""}
+            className={view === "overview" ? "active" : ""}
             onClick={() => {
-              setTab("overview");
+              setView("overview");
               setSidebarOpen(false);
             }}
           >
             <Icon name="grid" />
-            Meetings<span className="nav-count">{meetings.length}</span>
+            Overview
           </button>
           <button
-            className={tab === "actions" ? "active" : ""}
+            className={view === "recordings" ? "active" : ""}
             onClick={() => {
+              setView("recordings");
+              setSidebarOpen(false);
+            }}
+          >
+            <Icon name="document" />
+            Recordings<span className="nav-count">{meetings.length}</span>
+          </button>
+          <button
+            className={view === "meeting" && tab === "actions" ? "active" : ""}
+            onClick={() => {
+              setView("meeting");
               setTab("actions");
               setSidebarOpen(false);
             }}
@@ -421,9 +470,19 @@ export default function Home() {
             Action items
             {recap && <span className="nav-count">{recap.actions.length}</span>}
           </button>
+          <button
+            className={view === "settings" ? "active" : ""}
+            onClick={() => {
+              setView("settings");
+              setSidebarOpen(false);
+            }}
+          >
+            <Icon name="settings" />
+            Settings
+          </button>
         </nav>
         <div className="sidebar-section-heading">
-          <span>YOUR MEETINGS</span>
+          <span>MEETINGS</span>
           <button
             className="icon-button"
             aria-label="Add a meeting"
@@ -439,7 +498,7 @@ export default function Home() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Find a conversation…"
+            placeholder="Search meetings"
           />
         </label>
         <nav className="meeting-list" aria-label="Meetings">
@@ -454,9 +513,9 @@ export default function Home() {
                 <Icon name="document" size={17} />
               </span>
               <span>
-                <strong>{item.category}</strong>
+                <strong>{item.title}</strong>
                 <small>
-                  {item.date.replace(", 2026", "")} · {item.duration}
+                  {item.category} · {item.date.replace(", 2026", "")}
                 </small>
               </span>
             </button>
@@ -471,25 +530,25 @@ export default function Home() {
               <Icon name="leaf" size={23} />
             </span>
             <strong>
-              Your meeting.
+              Private on
               <br />
-              Your machine.
+              this device.
             </strong>
-            <p>Thoughtful AI, with your privacy at heart.</p>
+            <p>Your transcript is analyzed in this browser.</p>
             <button
               className="text-button"
               onClick={() => setDialog("privacy")}
             >
-              How it stays private <Icon name="arrow" size={14} />
+              See how privacy works <Icon name="arrow" size={14} />
             </button>
           </div>
           <button className="help-button" onClick={() => setDialog("privacy")}>
-            <Icon name="help" size={18} />A little help
+            <Icon name="help" size={18} /> Privacy and help
           </button>
           <div className="profile">
             <span className="profile-avatar">Y</span>
             <span>
-              Your workspace<small>Local session</small>
+              Your workspace<small>Clears when refreshed</small>
             </span>
             <Icon name="lock" size={15} />
           </div>
@@ -506,14 +565,25 @@ export default function Home() {
             >
               <Icon name="menu" />
             </button>
-            <span>Workspace</span>
+            <span>Meetings</span>
             <Icon name="chevron" size={13} />
-            <strong>Meetings</strong>
+            <strong className="current-meeting-crumb">{viewTitle}</strong>
+            <strong className="mobile-page-title">{viewTitle}</strong>
           </div>
           <div className="topbar-right">
+            <button
+              className="theme-toggle"
+              aria-label={`Switch to ${darkTheme ? "light" : "dark"} theme`}
+              aria-pressed={darkTheme}
+              title={`Switch to ${darkTheme ? "light" : "dark"} theme`}
+              onClick={() => updateDarkTheme(!darkTheme)}
+            >
+              <Icon name={darkTheme ? "sun" : "moon"} size={16} />
+              <span>{darkTheme ? "Light" : "Dark"}</span>
+            </button>
             <span className="private-label">
               <Icon name="lock" size={14} />
-              Private by design
+              Transcript stays private
             </span>
             <span className="topbar-divider" />
             <button
@@ -528,6 +598,38 @@ export default function Home() {
         </header>
         <div className="workspace-columns">
           <main id="meeting-content" className="meeting-main" tabIndex={-1}>
+            {view === "overview" && (
+              <WorkspaceOverview
+                meetings={meetings}
+                recaps={allRecaps}
+                onOpenMeeting={(id) => void selectMeeting(id)}
+                onOpenLibrary={() => setView("recordings")}
+              />
+            )}
+            {view === "recordings" && (
+              <RecordingsLibrary
+                meetings={meetings}
+                category={libraryCategory}
+                onCategoryChange={setLibraryCategory}
+                onOpenMeeting={(id) => void selectMeeting(id)}
+              />
+            )}
+            {view === "settings" && (
+              <WorkspaceSettings
+                model={model}
+                darkTheme={darkTheme}
+                onDarkThemeChange={updateDarkTheme}
+                textSize={textSize}
+                onTextSizeChange={(size) => {
+                  setTextSize(size);
+                  localStorage.setItem("hablabla-text-size", String(size));
+                }}
+                onAddMeeting={() => setDialog("import")}
+                onShowPrivacy={() => setDialog("privacy")}
+              />
+            )}
+            {view === "meeting" && (
+              <>
             <div className="meeting-heading">
               <div className="heading-kicker">
                 <span className="category-dot" />
@@ -567,15 +669,70 @@ export default function Home() {
                         .join(", ")
                     : "Your imported transcript"}
                 </span>
+              </div>
+              <div className="meeting-heading-actions">
                 <button
-                  className="icon-button export-button"
-                  onClick={downloadRecap}
-                  aria-label="Download meeting recap"
+                  className="button compact"
+                  disabled={busy}
+                  onClick={() => setDialog("edit")}
                 >
-                  <Icon name="download" size={18} />
+                  <Icon name="edit" size={15} />
+                  Edit transcript
+                </button>
+                <button className="button compact" onClick={downloadRecap}>
+                  <Icon name="download" size={16} />
+                  Download
                 </button>
               </div>
             </div>
+            <section className="quick-start" aria-labelledby="quick-start-title">
+              <div className="quick-start-copy">
+                <span className="quick-start-label">START HERE</span>
+                <h2 id="quick-start-title">Turn this meeting into clear next steps</h2>
+                <p>
+                  Start the private AI, then create a summary you can review and
+                  download. Your transcript stays in this browser.
+                </p>
+              </div>
+              <ol className="quick-start-steps" aria-label="How it works">
+                <li className="complete"><span>1</span>Meeting selected</li>
+                <li className={model.phase === "ready" || model.phase === "cancelled" || model.phase === "generating" ? "complete" : ""}>
+                  <span>2</span>Start private AI
+                </li>
+                <li className={recaps[selectedId] ? "complete" : ""}><span>3</span>Review your recap</li>
+              </ol>
+              {model.phase === "checking" ? (
+                <div className="quick-start-checking" role="status">
+                  <Icon name="refresh" size={17} />
+                  Checking whether this browser can run private AI…
+                </div>
+              ) : model.phase === "idle" || model.phase === "error" ? (
+                <button
+                  className="button primary quick-start-action"
+                  onClick={() => void modelRuntime.load(model.model)}
+                >
+                  <Icon name={model.phase === "error" ? "refresh" : "download"} size={17} />
+                  {model.phase === "error" ? "Try private AI again" : "Start private AI"}
+                </button>
+              ) : model.phase === "downloading" || model.phase === "loading" ? (
+                <div className="quick-start-progress" role="status">
+                  <span>{Math.round(model.progress * 100)}%</span>
+                  <progress value={model.progress} max={1} aria-label="Private AI setup progress" />
+                  <span>Setting up private AI…</span>
+                </div>
+              ) : model.phase === "unsupported" ? (
+                <p className="quick-start-unavailable">This browser cannot run the private AI. Try a current version of Chrome on a device with WebGPU.</p>
+              ) : (
+                <button
+                  className="button primary quick-start-action"
+                  disabled={!canAsk}
+                  onClick={() => void ask("Create a concise meeting recap with decisions, action items, and open questions.", true)}
+                >
+                  <Icon name="spark" size={17} />
+                  {busy ? "Creating recap…" : recaps[selectedId] ? "Update recap" : "Create my recap"}
+                </button>
+              )}
+            </section>
             <div
               className="meeting-tabs"
               role="tablist"
@@ -626,11 +783,11 @@ export default function Home() {
                         <span className="recap-spark">
                           <Icon name="spark" size={18} />
                         </span>
-                        <h2>The conversation, distilled.</h2>
+                        <h2>Meeting summary</h2>
                       </div>
                       <span className="recap-label">
                         {isExample
-                          ? "Example recap"
+                          ? "Sample preview"
                           : recap
                             ? "Generated locally"
                             : "Ready when you are"}
@@ -638,7 +795,7 @@ export default function Home() {
                     </div>
                     <p className="recap-summary">
                       {recap?.summary ??
-                        "Good conversations deserve a clear next step. Load the local assistant to turn this transcript into a summary, decisions, and suggested actions."}
+                        "Start the private AI above to turn this transcript into a summary, decisions, and suggested actions."}
                     </p>
                     <div className="recap-footer">
                       <span>
@@ -667,14 +824,14 @@ export default function Home() {
                         {busy
                           ? "Working…"
                           : recap
-                            ? "Analyze locally"
+                            ? "Create with private AI"
                             : "Create recap"}
                         <Icon name="arrow" size={14} />
                       </button>
                     </div>
                   </section>
                   <div className="section-heading">
-                    <h2>What we decided</h2>
+                    <h2>Decisions</h2>
                     <span>{recap?.decisions.length ?? 0} decisions</span>
                   </div>
                   {recap?.decisions.length ? (
@@ -709,12 +866,12 @@ export default function Home() {
                     </div>
                   )}
                   <div className="section-heading">
-                    <h2>A little follow-through</h2>
+                    <h2>Next steps</h2>
                     <button
                       className="text-button"
                       onClick={() => setTab("actions")}
                     >
-                      View all <Icon name="arrow" size={14} />
+                      See all action items <Icon name="arrow" size={14} />
                     </button>
                   </div>
                   <div className="action-preview-grid">
@@ -760,7 +917,7 @@ export default function Home() {
                         <Icon name="help" size={19} />
                       </span>
                       <div>
-                        <h2>Still an open question</h2>
+                        <h2>Open questions</h2>
                         {recap.questions.map((item) => (
                           <p key={item}>{item}</p>
                         ))}
@@ -817,7 +974,7 @@ export default function Home() {
                 <>
                   <div className="section-heading">
                     <div>
-                      <h2>Turn good intentions into next steps.</h2>
+                      <h2>Action items</h2>
                       <p>
                         Suggestions are yours to review. Nothing is sent
                         automatically.
@@ -961,6 +1118,8 @@ export default function Home() {
                 </>
               )}
             </div>
+              </>
+            )}
             <footer className="meeting-footer">
               <Icon name="leaf" size={15} />
               <span>A clearer head. A thoughtful next step.</span>
@@ -975,8 +1134,8 @@ export default function Home() {
               <div className="assistant-brand">
                 <BrandMark size={30} />
                 <div>
-                  <h2 id="assistant-title">A little clarity</h2>
-                  <p>Your private meeting assistant</p>
+                  <h2 id="assistant-title">Ask about this meeting</h2>
+                  <p>Answers use the selected transcript</p>
                 </div>
               </div>
               <span className="local-pill">
@@ -987,13 +1146,13 @@ export default function Home() {
                       : "status-dot muted-dot"
                   }
                 />
-                Local AI
+                Private AI
               </span>
             </header>
             <div className="assistant-context">
               <Icon name="document" size={15} />
-              <span>{meeting.category}</span>
-              <span className="context-connected">In context</span>
+              <span title={meeting.title}>{meeting.title}</span>
+              <span className="context-connected">Selected</span>
             </div>
             <div
               className="chat-scroll"
@@ -1016,17 +1175,13 @@ export default function Home() {
                     <span className="orbit-dot" />
                   </div>
                   <span className="welcome-eyebrow">
-                    LESS BUSYWORK. MORE MOMENTUM.
+                    MEETING ASSISTANT
                   </span>
                   <h3>
-                    Good conversations.
-                    <br />
-                    Clear next steps.
+                    What would you like to know?
                   </h3>
                   <p>
-                    I’ll help you connect the dots,
-                    <br />
-                    so nothing important gets lost.
+                    Choose a common question below, or type your own.
                   </p>
                   <div className="suggestion-list">
                     <button
@@ -1039,7 +1194,7 @@ export default function Home() {
                       }
                     >
                       <Icon name="spark" size={17} />
-                      <span>Find the important bits</span>
+                      <span>Create a summary and action items</span>
                       <Icon name="arrow" size={15} />
                     </button>
                     <button
@@ -1049,7 +1204,7 @@ export default function Home() {
                       }
                     >
                       <Icon name="tasks" size={17} />
-                      <span>Who’s doing what?</span>
+                      <span>List each person’s commitments</span>
                       <Icon name="arrow" size={15} />
                     </button>
                     <button
@@ -1059,7 +1214,7 @@ export default function Home() {
                       }
                     >
                       <Icon name="help" size={17} />
-                      <span>What’s still up in the air?</span>
+                      <span>Find unresolved questions</span>
                       <Icon name="arrow" size={15} />
                     </button>
                   </div>
@@ -1126,8 +1281,8 @@ export default function Home() {
                   onChange={(event) => setQuestion(event.target.value)}
                   placeholder={
                     canAsk
-                      ? "A question, a loose end, a next step…"
-                      : "Load your local model to start chatting…"
+                      ? "Ask a question about this meeting…"
+                      : "Start private AI above to ask a question"
                   }
                   onKeyDown={(event) => {
                     if (
@@ -1169,18 +1324,45 @@ export default function Home() {
                 </div>
               </form>
               <p className="assistant-footnote">
-                A thoughtful assistant. You’re still the decision-maker.
+                AI can make mistakes. Check important details in the transcript.
               </p>
             </div>
           </aside>
         </div>
       </div>
+      <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+        <button
+          className={view === "overview" ? "active" : ""}
+          onClick={() => setView("overview")}
+        >
+          <Icon name="home" size={21} />
+          <span>Home</span>
+        </button>
+        <button
+          className={view === "recordings" ? "active" : ""}
+          onClick={() => setView("recordings")}
+        >
+          <Icon name="document" size={21} />
+          <span>Recordings</span>
+        </button>
+        <button className="mobile-add" onClick={() => setDialog("import")}>
+          <Icon name="plus" size={24} />
+          <span>Add</span>
+        </button>
+        <button
+          className={view === "settings" ? "active" : ""}
+          onClick={() => setView("settings")}
+        >
+          <Icon name="settings" size={21} />
+          <span>Settings</span>
+        </button>
+      </nav>
       {(dialog === "import" || dialog === "edit") && (
         <MeetingDialog
           title={
             dialog === "edit"
-              ? "Make the transcript yours"
-              : "Bring a conversation along"
+              ? "Edit transcript"
+              : "Add a meeting"
           }
           onClose={() => setDialog(null)}
         >
@@ -1233,7 +1415,7 @@ export default function Home() {
       )}
       {dialog === "privacy" && (
         <MeetingDialog
-          title="A little more peace of mind."
+          title="How your meeting stays private"
           onClose={() => setDialog(null)}
         >
           <div className="privacy-dialog-symbol">
@@ -1299,8 +1481,8 @@ export default function Home() {
         <MeetingDialog
           title={
             review.proposal
-              ? "One last look before saving."
-              : "A next step, on your terms."
+              ? "Approve this task"
+              : "Review this action item"
           }
           onClose={() => setReview(undefined)}
           busy={saveBusy}
