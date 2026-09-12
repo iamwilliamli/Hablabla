@@ -119,6 +119,10 @@ single-use/expired pairing, forged credentials, Host/Origin guards, bounded inpu
 metadata mismatch, duplicate/lost replies, denial, cancellation, offline peers,
 expiry, revocation and restart. All 132 repository tests and typechecks passed;
 three native bundle checks passed. The app compiled with the installed macOS SDK.
+The web production build also passed after merging the team's meeting-navigation
+and backend-documentation changes through `06849b4`. Production browser/native
+pairing and both `/devices` and the meeting homepage were checked. The existing
+CopilotKit dependency warning remains; no live model generation was run.
 
 Live checks on macOS 26: browser pairing, actual permission reporting, browser
 cancellation, native decline, and a real selected-window capture shared to the

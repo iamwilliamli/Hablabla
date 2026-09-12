@@ -740,6 +740,12 @@ native disconnection. The rebuilt ad-hoc app required the
 already-documented scoped Screen Recording refresh. Legacy macOS capture paths
 and signing-grant persistence are not established by this run.
 
+The production web build passed after merging upstream `06849b4` (meeting
+navigation and backend handoff documentation). Production pairing and the
+`/devices` and `/` pages were checked. Existing CopilotKit build warnings remain;
+no model inference was started. The backend API inventory now links to the local
+device contract and keeps it separate from speech and the Terminal relay.
+
 Next milestones are an authenticated remote relay, document-command dashboard
 integration, streaming and separately permitted input. Off-Mac image sharing
 requires a concrete authenticated destination and explicit consent. Accessibility
