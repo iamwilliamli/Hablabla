@@ -9,24 +9,64 @@ Choose your city on the [global event page](https://aitinkerers.org/hackathons/g
 - [ ] We identify inherited templates, libraries, prompts, components, and starter code separately from our event work
 
 **What we inherited**
-<!-- Include this starter kit and any reused examples. -->
+
+- The Agents, Everywhere starter repository, its Next.js monorepo setup, and the
+  web template's CopilotKit React/provider wiring.
+- The reference incident workflow at `/reference`, optional `/voice` example,
+  shared approval pattern, and Ambiguous AI adapter.
+- Third-party libraries including CopilotKit, WebLLM, Next.js, React, and Zod.
 
 **What we built during the hackathon**
-<!-- Describe the new core interaction and point to its implementation. Running the supplied incident demo alone does not establish a new project. -->
+
+- A new doctor–patient conversation workspace at `/`, with accessible desktop
+  and mobile navigation, recording library, visit transcript editor, dark/light
+  themes, adjustable text size, and reviewable visit-note drafts.
+- A native Apple Silicon speech worker and authenticated speech gateway for
+  Parakeet live transcription and queued MOSS file transcription with speaker
+  segments.
+- Server-only `/api/speech/*` routes that keep the partner API key out of the
+  browser while supporting readiness, one-time WebSocket tickets, uploads,
+  polling, errors, retries, and cancellation.
+- A browser capture flow that waits for Parakeet readiness, streams framed 16
+  kHz PCM, replaces stale transcript revisions, and waits for a final result.
+- Clinical guardrails in the local agent prompt: generic speakers remain
+  unidentified, generated notes must stay grounded in the transcript, and the
+  clinician reviews the draft before using or saving follow-ups.
 
 ## Title and description
 
 **What you built**
-<!-- Explain the complete interaction your demo shows. -->
+
+Hablabla turns a doctor–patient conversation into an editable, speaker-labeled
+transcript and a clinician-reviewed visit-note draft. A clinician can upload a
+recording or start live captions, see backend progress and errors, correct the
+transcript, run the private in-browser agent, inspect transcript evidence, and
+download the result or explicitly approve a follow-up task.
 
 **Who it is for**
-<!-- Name a person in a concrete situation. -->
+
+A clinician who wants to capture a patient visit and review useful notes without
+manually reconstructing the conversation afterward.
 
 **Why the context matters**
-<!-- What did the agent know or do because it lived in this surface? -->
+
+The agent receives the currently selected visit transcript from the workspace,
+so the clinician does not paste sensitive context into a separate chat. Its
+structured draft links decisions and follow-ups to transcript evidence. It does
+not infer which generic speaker is the doctor or patient and does not invent an
+unstated diagnosis, treatment, or instruction.
 
 **Sponsor technologies used**
-<!-- Name the tools you actually used and the visible contribution of each. -->
+
+- **CopilotKit React** supplies the in-app agent lifecycle, selected-visit
+  context, streaming conversation, and UI integration.
+- **Ambiguous AI** is an optional persistence destination for a follow-up after
+  the clinician reviews the exact fields and explicitly approves the write.
+
+The primary visit analysis uses WebLLM in the browser. The transcription backend
+uses Parakeet and MOSS locally; these are project infrastructure rather than
+sponsor integrations. OpenAI, OpenRouter, Exa, Auth0, and CopilotKit Intelligence
+are not required by this submitted workflow.
 
 ## Evidence for the judging criteria
 

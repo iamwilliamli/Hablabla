@@ -1439,6 +1439,110 @@
   font-size: 13px;
   margin: 0 0 22px;
 }
+.speech-input {
+  display: grid;
+  gap: 13px;
+  padding: 16px;
+  margin: 0 0 20px;
+  border: 1px solid #dce4d4;
+  border-radius: 12px;
+  background: #f4f7ef;
+}
+.speech-input-heading,
+.speech-controls,
+.speech-mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.speech-input-heading {
+  justify-content: space-between;
+}
+.speech-input-heading h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.speech-input-heading p,
+.live-help {
+  margin: 2px 0 0;
+  color: #68795e;
+  font-size: 11px;
+}
+.speech-connection {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 99px;
+  background: #e8ddd0;
+  color: #765538;
+  font-size: 10px;
+  font-weight: 700;
+}
+.speech-connection.connected {
+  background: #dcebd5;
+  color: #3f6d35;
+}
+.speech-mode {
+  padding: 3px;
+  border-radius: 9px;
+  background: #e7ecdf;
+}
+.speech-mode button {
+  flex: 1;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #657258;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.speech-mode button[aria-selected="true"] {
+  background: #fff;
+  color: #30452f;
+  box-shadow: 0 1px 5px #2b412018;
+}
+.speech-controls {
+  align-items: stretch;
+}
+.audio-picker {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px dashed #aebb9f;
+  border-radius: 8px;
+  background: #fff;
+  color: #53644c;
+  cursor: pointer;
+}
+.audio-picker span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.audio-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.live-help { flex: 1; align-self: center; }
+.speech-input progress {
+  width: 100%;
+  height: 7px;
+  accent-color: #617b52;
+}
+.speech-status {
+  margin: 0;
+  color: #516348;
+  font-size: 11px;
+}
+.speech-status small { display: block; overflow-wrap: anywhere; }
 .meeting-form {
   display: grid;
   gap: 8px;
@@ -2375,6 +2479,17 @@
 .dark-theme .meeting-form input,
 .dark-theme .meeting-form textarea {
   background: #1a211c;
+  color: var(--ink);
+}
+.dark-theme .speech-input {
+  border-color: #344237;
+  background: #18201a;
+}
+.dark-theme .speech-mode { background: #242f27; }
+.dark-theme .speech-mode button { color: #9dac9d; }
+.dark-theme .speech-mode button[aria-selected="true"],
+.dark-theme .audio-picker {
+  background: #202a23;
   color: var(--ink);
 }
 .dark-theme .workspace-switch,

@@ -1,13 +1,12 @@
-# Hablabla — private meeting workspace
+# Hablabla — private visit transcription workspace
 
-The home page is Hablabla's meeting workspace, built with Next.js, React, CopilotKit and a WebLLM worker. The inherited incident demo remains at `/reference`; the optional voice example remains at `/voice`.
+The home page is Hablabla's doctor–patient conversation workspace, built with Next.js, React, CopilotKit and a WebLLM worker. Clinicians can upload a visit recording or use live captions, correct the speaker-labeled transcript, and draft grounded visit notes for review. The inherited incident demo remains at `/reference`; the optional voice example remains at `/voice`.
 
-**Handoff status:** UI implementation, 97 automated tests, and the production build are complete. Live local-AI generation verification is deferred at the user's request after an interrupted browser run. Ambiguous live writes remain unverified. The separate Mac companion now has a Terminal prototype in `apps/companion/`; the same-Mac snapshot dashboard is now available at `/devices`, while the production relay remains planned; see [TECH_STACK.md](../../TECH_STACK.md) for completed work, file ownership, and the proposed integration protocol. Do not replace the meeting UI or resume GPU testing as part of companion work.
+**Handoff status:** UI implementation, all 138 repository tests, and the production build are complete. The speech proxy and browser upload flow were exercised against a contract-compatible backend; real native model inference still requires the Apple Silicon demo host. Live local-AI generation verification is deferred at the user's request after an interrupted browser run. Ambiguous live writes remain unverified. The separate Mac companion now has a Terminal prototype in `apps/companion/`; the same-Mac snapshot dashboard is available at `/devices`, while the production relay remains planned; see [TECH_STACK.md](../../TECH_STACK.md) for completed work, file ownership, and the proposed integration protocol. Do not replace the meeting UI or resume GPU testing as part of companion work.
 
 ## Local device dashboard
 
 Open **http://127.0.0.1:3100/devices** while this server runs. Pair it with the installed Hablabla Companion through the app’s **Local Dashboard…** window. Request a snapshot, choose/capture its source in the Mac app, then approve **Share with Dashboard**. Images remain on this Mac and expire after a minute. This route bypasses the meeting agent; it does not start a local or remote model. See the [local protocol and walkthrough](../companion/LOCAL_DASHBOARD.md). Keep the exact loopback bind/host; this is not an internet deployment.
-
 ## Run locally
 
 Use Node.js 22+ and run from the repository root:
@@ -20,6 +19,24 @@ npm run dev:web
 Open http://127.0.0.1:3100 in a current Chrome browser with WebGPU support. The home page requires **no model API key**. Click **Load local model** in the assistant panel to download and initialize Llama 3.2 3B. The first download can take several minutes. The smaller 1B model is offered after a load failure. There is no cloud inference fallback.
 
 Choose a sample meeting or use **Add meeting** to paste a transcript. The first sample includes an explicitly labeled, authored example recap. **Analyze locally** replaces it with validated model output. Chat uses the currently selected transcript; questions are independent and do not include earlier chat turns. To keep within the model context window, requests contain a bounded UTF-8 excerpt. Long meetings should be shortened before analysis; the app does not claim to summarize unseen content.
+
+### Connect the speech backend
+
+Start the native model worker and speech gateway as described in
+[`apps/speech-gateway/README.md`](../speech-gateway/README.md). Add the matching
+server-only values to root `.env`, then restart the web app:
+
+```dotenv
+HABLABLA_SPEECH_URL=http://127.0.0.1:8765
+HABLABLA_SPEECH_API_KEY=the-same-partner-key-configured-for-the-gateway
+```
+
+The browser calls only `/api/speech/*`. Next.js adds the partner bearer key when
+it creates a one-time Parakeet WebSocket ticket or proxies a MOSS upload, poll,
+or cancellation request. The key is never placed in browser JavaScript. The add
+visit dialog reports whether speech is connected and shows queued, processing,
+completed, failed, and cancelled states. MOSS speaker IDs remain generic until
+a clinician corrects them; the app does not infer who is the doctor or patient.
 
 Imported meetings, recaps and chat are kept in memory for this session. Download the recap before refreshing. No transcript is persisted by the backend. Model artifacts are cached by WebLLM in the browser.
 

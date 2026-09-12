@@ -98,7 +98,7 @@ final capture build also passed three native bundle tests.
 
 ### Ownership correction and OpenAI backend status — September 12, 2026
 
-William does not own the frontend. Do not modify frontend code for his tasks unless he explicitly changes this boundary. Frontend changes for the Local / OpenAI switch were withdrawn; the meeting UI remains local-only. The unconnected server-side `/api/meeting-agent` prototype and tests are retained for backend work. Direct calls to this endpoint use OpenAI when a server API key is configured; the local-only descriptions below describe the existing meeting UI, not this optional endpoint. Live OpenAI requests remain unverified. Future frontend integration belongs to its frontend owners and requires explicit disclosure before sending meeting data.
+William does not own the frontend. Do not modify frontend code for his tasks unless he explicitly changes this boundary. Frontend changes for the Local / OpenAI switch were withdrawn; the meeting UI remains local-only. The server-side `/api/meeting-agent` prototype and tests are retained for backend work and remain unconnected to the UI. Direct calls to this endpoint use OpenAI when a server API key is configured; the local-only descriptions below describe the existing meeting UI, not this optional endpoint. Live OpenAI requests remain unverified. The frontend owner has now connected the general speech gateway through server-only `/api/speech/*` proxy routes for the clinician transcription workflow; this does not connect the OpenAI prototype.
 
 ## 1. Meeting-workspace summary
 
@@ -843,17 +843,18 @@ The meeting workspace must still open at `/`, the reference routes must remain a
 
 ## 24. Doctor and patient assistant — proposed design
 
-**Design idea, recorded September 12, 2026.** This section captures a proposed
-product direction and acceptance targets; it does not establish implementation,
-clinical validation, or regulatory compliance. It does not change current team
-ownership or authorize frontend implementation.
+**Design idea, recorded September 12, 2026.** The first transcription slice is
+now implemented in the frontend: backend readiness, MOSS recording upload with
+progress/cancellation, Parakeet live captions, generic speaker labels, transcript
+editing, and a clinician-review reminder. The wider report, research,
+translation, clinical-validation, and deployment targets below remain proposed.
 
 **Scope decision — September 12, 2026:** The user requested removal of the
-uncommitted `/care` prototype. This medical workflow is documentation-only;
-there is no `/care` page or `/api/care/*` contract. William provides the existing
-general transcription capability and its integration documentation only.
-Frontend capture, transcript display, report UI, browser agents, and provider
-wiring remain with the frontend owners. Use the
+uncommitted `/care` prototype, then explicitly asked the frontend owner to focus
+the existing workspace on doctor–patient transcription and connect the completed
+speech API. There is no separate `/care` page or `/api/care/*` contract. William
+provides the general transcription capability and its integration documentation;
+the frontend owner implements the web connection. Use the
 [speech frontend contract](dev-docs/speech-api-frontend.md) for transcription
 integration; medical reports, research, and translation remain proposed work.
 
