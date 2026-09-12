@@ -328,3 +328,18 @@ test("offline or disconnected execution stays uncertain and never replays", asyn
     assert.equal((await f.native(f.p.token, f.authorize)).status, mode === "offline" ? 409 : 401);
   }
 });
+
+test("late or repeated cancellation cannot relabel dispatched input as never executed", async () => {
+  const f = await controlFixture();
+  await f.browser(f.cookie, { ...f.command, action: { kind: "type_text", text: "Demo" } });
+  await f.native(f.p.token, f.authorize);
+  await f.native(f.p.token, { operation: "result", requestId: f.command.requestId, result: "dispatched" });
+  await f.browser(f.cookie, { operation: "clear" });
+  assert.equal((await (await f.browser(f.cookie)).json()).request.status, "dispatched");
+  const requestId = randomUUID();
+  await f.browser(f.cookie, { ...f.command, requestId });
+  await f.native(f.p.token, { ...f.authorize, requestId });
+  await f.browser(f.cookie, { operation: "clear" });
+  await f.browser(f.cookie, { operation: "clear" });
+  assert.equal((await (await f.browser(f.cookie)).json()).request.status, "unknown");
+});

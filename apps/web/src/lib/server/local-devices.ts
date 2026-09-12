@@ -195,7 +195,14 @@ export class LocalDevices {
           break;
         }
         case "clear":
-          if (session.request) { session.request.status = session.request.status === "executing" ? "unknown" : "cancelled"; session.request.action = undefined; session.request.bytes = undefined; session.request.metadata = null; session.request.imageExpiresAt = null; }
+          if (session.request) {
+            const pending = session.request;
+            // Cancellation can arrive after execution finished, or be retried.
+            // Keep the actual outcome; never relabel sent input as cancelled.
+            if (pending.status === "executing") pending.status = "unknown";
+            else if (pending.status === "awaiting_approval" || pending.kind === "snapshot") pending.status = "cancelled";
+            pending.action = undefined; pending.bytes = undefined; pending.metadata = null; pending.imageExpiresAt = null;
+          }
           break;
         case "disconnect": this.disconnect(session); break;
       }

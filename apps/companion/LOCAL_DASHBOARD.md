@@ -250,3 +250,7 @@ Apple API references: [AX attributes](https://developer.apple.com/documentation/
 [process-targeted keyboard events](https://developer.apple.com/documentation/coregraphics/cgevent/posttopid(_:)),
 [mouse event delivery](https://developer.apple.com/documentation/coregraphics/cgevent/post(tap:)),
 [cursor positioning](https://developer.apple.com/documentation/coregraphics/cgwarpmousecursorposition(_:)).
+
+A final cancellation-race regression check brings the broker suite to **23 tests**,
+all passing, with repository-wide typechecks passing again. Late/repeated Cancel
+preserves a dispatched or uncertain outcome instead of claiming input never ran.
