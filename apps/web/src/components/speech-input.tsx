@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons";
+import { LiveSpeechInput } from "./speech/live-speech-input";
 
 type SpeechError = { code?: string; message?: string; retryable?: boolean; requestId?: string };
 type MossSegment = { id: string; startMs: number; endMs: number; speakerId: string | null; text: string };
@@ -10,16 +11,6 @@ type MossJob = {
   status: "queued" | "processing" | "completed" | "failed" | "cancelled";
   progress: number;
   result?: { text: string; durationMs: number; segments: MossSegment[] };
-  error?: SpeechError;
-};
-type LiveEvent = {
-  type: "connected" | "progress" | "ready" | "transcript" | "error";
-  progress?: number;
-  stage?: string;
-  revision?: number;
-  confirmedText?: string;
-  volatileText?: string;
-  isFinal?: boolean;
   error?: SpeechError;
 };
 
@@ -46,7 +37,11 @@ function transcriptFromJob(job: MossJob) {
     .join("\n\n");
 }
 
-export function SpeechInput({ onTranscript }: { onTranscript: (transcript: string) => void }) {
+export function SpeechInput({ onTranscript, onBusyChange, editing = false }: {
+  onTranscript: (transcript: string) => void;
+  onBusyChange?: (busy: boolean) => void;
+  editing?: boolean;
+}) {
   const [mode, setMode] = useState<"upload" | "live">("upload");
   const [connection, setConnection] = useState<"checking" | "connected" | "offline" | "needs-configuration">("checking");
   const [file, setFile] = useState<File>();
@@ -56,8 +51,9 @@ export function SpeechInput({ onTranscript }: { onTranscript: (transcript: strin
   const [busy, setBusy] = useState(false);
   const idempotencyKey = useRef(crypto.randomUUID());
   const pollController = useRef<AbortController | null>(null);
-  const liveCleanup = useRef<(() => void) | null>(null);
-  const liveStop = useRef<(() => void) | null>(null);
+  const [nemotronAvailable, setNemotronAvailable] = useState(false);
+
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
 
   useEffect(() => {
     let active = true;
@@ -65,13 +61,14 @@ export function SpeechInput({ onTranscript }: { onTranscript: (transcript: strin
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
         if (!active) return;
+        setNemotronAvailable(body.capabilities?.nemotron?.configured === true);
         setConnection(response.ok && body.status === "connected" ? "connected" : body.status === "needs-configuration" ? "needs-configuration" : "offline");
       })
       .catch(() => active && setConnection("offline"));
     return () => {
       active = false;
       pollController.current?.abort();
-      liveCleanup.current?.();
+
     };
   }, []);
 
@@ -109,7 +106,7 @@ export function SpeechInput({ onTranscript }: { onTranscript: (transcript: strin
         const transcript = transcriptFromJob(next);
         if (!transcript) throw new Error("The recording finished without any speech to add.");
         onTranscript(transcript);
-        setStatus("Transcript ready. Review it below, then add the meeting.");
+        setStatus(editing ? "Transcript ready. Review it below, then update this meeting." : "Transcript ready. Review it below, then add the meeting.");
         setBusy(false);
         return;
       }
@@ -163,127 +160,19 @@ export function SpeechInput({ onTranscript }: { onTranscript: (transcript: strin
     }
   }
 
-  async function startLive() {
-    if (busy) return;
-    setBusy(true);
-    setStatus("Getting the microphone ready…");
-    setRequestId("");
-    let context: AudioContext | undefined;
-    let media: MediaStream | undefined;
-    let source: MediaStreamAudioSourceNode | undefined;
-    let worklet: AudioWorkletNode | undefined;
-    let socket: WebSocket | undefined;
-    let stopping = false;
-    let latestRevision = -1;
-    let sequence = 0;
-    const cleanup = () => {
-      media?.getTracks().forEach((track) => track.stop());
-      try { source?.disconnect(); } catch {}
-      try { worklet?.disconnect(); } catch {}
-      if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
-      void context?.close();
-      liveCleanup.current = null;
-      liveStop.current = null;
-    };
-    liveCleanup.current = cleanup;
-    try {
-      context = new AudioContext({ sampleRate: 16000 });
-      if (context.sampleRate !== 16000) throw new Error(`This browser opened the microphone at ${context.sampleRate} Hz. Live captions need 16 kHz audio.`);
-      await context.resume();
-      await context.audioWorklet.addModule("/hablababla-pcm16-worklet.js");
-      media = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-      source = context.createMediaStreamSource(media);
-      worklet = new AudioWorkletNode(context, "hablababla-pcm16");
-      const session = await readResponse(await fetch("/api/speech/parakeet-session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ language: "en" }),
-      })) as { websocketUrl: string };
-      socket = new WebSocket(session.websocketUrl);
-      socket.binaryType = "arraybuffer";
-      const activeSocket = socket;
-      const activeWorklet = worklet;
-      const activeSource = source;
-      activeWorklet.port.onmessage = ({ data }) => {
-        if (data?.type === "flushed") {
-          if (activeSocket.readyState === WebSocket.OPEN) activeSocket.send(JSON.stringify({ type: "finish" }));
-          return;
-        }
-        if (activeSocket.readyState !== WebSocket.OPEN) return;
-        const samples = new Int16Array(data as ArrayBuffer);
-        const packet = new ArrayBuffer(8 + samples.byteLength);
-        const view = new DataView(packet);
-        view.setUint32(0, sequence++, true);
-        view.setUint32(4, samples.length, true);
-        new Uint8Array(packet, 8).set(new Uint8Array(samples.buffer));
-        activeSocket.send(packet);
-      };
-      activeSocket.addEventListener("open", () => activeSocket.send(JSON.stringify({ type: "start" })));
-      activeSocket.addEventListener("message", ({ data }) => {
-        const event = JSON.parse(String(data)) as LiveEvent;
-        if (event.type === "ready") {
-          activeSource.connect(activeWorklet);
-          setStatus("Listening… speak naturally, then press Finish.");
-          liveStop.current = () => {
-            if (stopping) return;
-            stopping = true;
-            media?.getTracks().forEach((track) => track.stop());
-            activeSource.disconnect();
-            activeWorklet.port.postMessage({ type: "flush" });
-            setStatus("Finishing your transcript…");
-          };
-        }
-        if (event.type === "progress") setStatus(event.stage === "loading-model" ? "Loading live captions on this computer…" : "Preparing live captions…");
-        if (event.type === "transcript" && typeof event.revision === "number" && event.revision > latestRevision) {
-          latestRevision = event.revision;
-          const text = `${event.confirmedText || ""}${event.volatileText || ""}`.trim();
-          if (text) onTranscript(`Speaker [00:00]: ${text}`);
-          if (event.isFinal) {
-            setStatus("Live transcript ready. Review it below, then add the meeting.");
-            setBusy(false);
-            cleanup();
-          }
-        }
-        if (event.type === "error") {
-          setRequestId(event.error?.requestId || "");
-          setStatus(event.error?.message || "Live captions stopped unexpectedly.");
-          setBusy(false);
-          cleanup();
-        }
-      });
-      activeSocket.addEventListener("error", () => {
-        setStatus("Could not connect to live captions.");
-        setBusy(false);
-        cleanup();
-      });
-      activeSocket.addEventListener("close", () => {
-        if (!stopping && liveCleanup.current) {
-          setStatus("Live captions ended before a final transcript arrived.");
-          setBusy(false);
-          cleanup();
-        }
-      });
-      setStatus("Connecting to live captions…");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not start live captions.");
-      setBusy(false);
-      cleanup();
-    }
-  }
-
   const progress = Math.round((job?.progress || 0) * 100);
   return (
     <section className="speech-input" aria-labelledby="speech-input-title">
       <div className="speech-input-heading">
         <div>
-          <h3 id="speech-input-title">Transcribe a doctor–patient conversation</h3>
+          <h3 id="speech-input-title">{editing ? "Transcribe audio for this meeting" : "Transcribe a doctor–patient conversation"}</h3>
           <p>Processed by the speech backend connected to this app.</p>
         </div>
         <span className={`speech-connection ${connection}`}>{connection === "connected" ? "Speech ready" : connection === "checking" ? "Checking…" : "Speech offline"}</span>
       </div>
       <div className="speech-mode" role="tablist" aria-label="Audio source">
         <button type="button" role="tab" aria-selected={mode === "upload"} onClick={() => setMode("upload")} disabled={busy}>Upload recording</button>
-        <button type="button" role="tab" aria-selected={mode === "live"} onClick={() => setMode("live")} disabled={busy}>Live captions</button>
+        <button type="button" role="tab" aria-selected={mode === "live"} onClick={() => setMode("live")} disabled={busy}>Live transcription</button>
       </div>
       {mode === "upload" ? (
         <div className="speech-controls">
@@ -292,16 +181,13 @@ export function SpeechInput({ onTranscript }: { onTranscript: (transcript: strin
             <span>{file?.name || "Choose a visit recording"}</span>
             <input type="file" accept="audio/*,video/mp4,video/webm" onChange={(event) => chooseFile(event.target.files?.[0])} disabled={busy} />
           </label>
-          {busy ? <button type="button" className="button" onClick={cancelJob}>Cancel</button> : <button type="button" className="button primary" onClick={upload} disabled={!file || connection !== "connected"}>Transcribe</button>}
+          {busy ? <button type="button" className="button" onClick={cancelJob}>Cancel</button> : <button type="button" className="button primary" onClick={upload} disabled={!file || connection !== "connected"}>Transcribe with MOSS</button>}
         </div>
       ) : (
-        <div className="speech-controls">
-          <p className="live-help">Use your microphone for a live, revisable transcript.</p>
-          {busy ? <button type="button" className="button primary" onClick={() => liveStop.current?.()} disabled={!liveStop.current}><Icon name="stop" size={16} /> Finish</button> : <button type="button" className="button primary" onClick={startLive} disabled={connection !== "connected"}>Start listening</button>}
-        </div>
+        <LiveSpeechInput connected={connection === "connected"} nemotronAvailable={nemotronAvailable} onTranscript={onTranscript} onBusyChange={setBusy} editing={editing} />
       )}
       {(busy || job) && mode === "upload" && <progress value={progress} max="100" aria-label={`Transcription ${progress}% complete`} />}
-      {status && <p className="speech-status" role="status">{status}{requestId && <small> Request ID: {requestId}</small>}</p>}
+      {mode === "upload" && status && <p className="speech-status" role="status">{status}{requestId && <small> Request ID: {requestId}</small>}</p>}
     </section>
   );
 }

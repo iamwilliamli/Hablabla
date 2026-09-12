@@ -99,22 +99,7 @@ Dr Priya Nair [02:30]: Reducing salt and regular aerobic exercise both help. Let
   },
 ];
 
-export function transcriptEntries(transcript: string) {
-  return transcript
-    .split(/\n\s*\n/)
-    .filter(Boolean)
-    .map((paragraph, index) => {
-      const match = paragraph.match(
-        /^([^\n:]+?)\s*\[(\d{1,2}:\d{2})\]:\s*([\s\S]*)$/,
-      );
-      return {
-        id: index,
-        speaker: match?.[1] ?? "Transcript",
-        time: match?.[2] ?? "",
-        text: match?.[3] ?? paragraph,
-      };
-    });
-}
+export { renderTranscriptTurns as transcriptEntries } from "./transcript-display";
 
 export function initials(name: string) {
   return name

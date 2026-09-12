@@ -1,0 +1,11 @@
+.draft { min-width: 0; }
+.label { margin: 6px 0 8px; font-size: 12px; font-weight: 600; }
+.preview { max-height: 360px; overflow: auto; border: 1px solid #d7e0cc; border-radius: 8px; padding: 14px; background: #fff; color: #354a2e; }
+.turn + .turn { border-top: 1px solid #e3e8db; margin-top: 14px; padding-top: 14px; }
+.turn header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; font-size: 12px; }
+.turn time { color: #65745d; font-variant-numeric: tabular-nums; }
+.turn p { margin: 6px 0 0; font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.editor { margin-top: 10px; }
+.editor summary { cursor: pointer; font-size: 12px; font-weight: 600; padding: 4px 0; }
+.editor label { display: block; margin-bottom: 8px; }
+.preview:focus-visible, .editor summary:focus-visible { outline: 2px solid #617b52; outline-offset: 3px; }

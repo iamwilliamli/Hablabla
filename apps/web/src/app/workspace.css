@@ -3011,3 +3011,20 @@
 .hb-app .person-avatar.avatar-2 { color: #4c5d35; }
 .hb-app .open-questions p { color: #71603c; }
 .hb-app :is(.meeting-heading h1, .meeting-tab-content) { overflow-wrap: anywhere; }
+
+.live-speech { display: grid; gap: 13px; min-width: 0; }
+.live-speech-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.live-speech label { display: grid; gap: 6px; min-width: 0; font-size: 12px; font-weight: 600; }
+.live-speech select, .live-speech input { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px; border: 1px solid #aebb9f; border-radius: 8px; background: #fff; color: #30452f; font: inherit; }
+.live-hotwords span, .live-hotwords small { font-size: 11px; font-weight: 400; color: #68795e; }
+.live-recorder { flex-wrap: wrap; align-items: center; }
+.live-recorder > div { flex: 1 1 180px; }
+.live-recorder strong { font-size: 13px; }
+.live-recorder time { font-variant-numeric: tabular-nums; font-size: 13px; }
+.live-transcript { border: 1px solid #dce4d4; border-radius: 9px; padding: 12px; background: #fff; }
+.live-transcript > div { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; }
+.live-transcript span { color: #68795e; }
+.live-transcript p { margin: 10px 0 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
+.dark-theme .live-speech select, .dark-theme .live-speech input, .dark-theme .live-transcript { background: #242f27; color: #e3eadf; border-color: #4f604a; }
+.dark-theme .live-hotwords span, .dark-theme .live-hotwords small, .dark-theme .live-transcript span { color: #b2c1a8; }
+@media (max-width: 480px) { .live-speech-options { grid-template-columns: 1fr; } .speech-input-heading { flex-wrap: wrap; } }

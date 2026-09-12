@@ -69,17 +69,26 @@ export async function speechHealth(fetcher: typeof fetch = fetch) {
 }
 
 export async function createParakeetSession(request: Request, fetcher: typeof fetch = fetch) {
+  return createLiveSession(request, "parakeet", fetcher);
+}
+
+export async function createNemotronSession(request: Request, fetcher: typeof fetch = fetch) {
+  return createLiveSession(request, "nemotron", fetcher);
+}
+
+async function createLiveSession(request: Request, model: "parakeet" | "nemotron", fetcher: typeof fetch) {
   const { baseUrl, apiKey } = speechConfiguration();
   try {
     if (!apiKey) return unavailable(new Error("NO_API_KEY"));
-    const input = (await request.json().catch(() => ({}))) as { language?: unknown };
+    const input = (await request.json().catch(() => ({}))) as { language?: unknown; hotwords?: unknown };
     const language = typeof input.language === "string" ? input.language : "en";
-    const response = await fetcher(`${baseUrl}/v1/parakeet/sessions`, {
+    const response = await fetcher(`${baseUrl}/v1/${model}/sessions`, {
       method: "POST",
       headers: upstreamHeaders(apiKey, { "content-type": "application/json" }),
       body: JSON.stringify({
         origin: requestOrigin(request),
         language,
+        ...(model === "nemotron" ? { hotwords: input.hotwords ?? [] } : {}),
         audio: { encoding: "pcm_s16le", sampleRateHz: 16000, channels: 1 },
       }),
     });

@@ -99,3 +99,32 @@ test("job polling and cancellation call the authenticated backend route", async 
     else process.env.HABLABLA_SPEECH_API_KEY = previous;
   }
 });
+
+test("Nemotron proxy forwards multilingual hotwords and rejects a foreign origin", async () => {
+  const { createNemotronSession } = await import("./speech");
+  const previous = process.env.HABLABLA_SPEECH_API_KEY;
+  process.env.HABLABLA_SPEECH_API_KEY = "partner-secret";
+  const calls: { url: string; body: Record<string, unknown> }[] = [];
+  const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+    return Response.json({ sessionId: "once", websocketUrl: "ws://localhost/stream?ticket=once" }, { status: 201 });
+  };
+  try {
+    for (const origin of ["http://localhost:3100", "https://foreign.example"]) {
+      const response = await createNemotronSession(new Request("http://localhost:3100/api/speech/nemotron-session", {
+        method: "POST", headers: { host: "localhost:3100", origin },
+        body: JSON.stringify({ language: "zh", hotwords: ["阿莫西林"] }),
+      }), fetcher as typeof fetch);
+      assert.equal(response.status, origin.includes("foreign") ? 403 : 201);
+      assert.doesNotMatch(await response.text(), /partner-secret/);
+    }
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/v1\/nemotron\/sessions$/);
+    assert.equal(calls[0].body.language, "zh");
+    assert.deepEqual(calls[0].body.hotwords, ["阿莫西林"]);
+    assert.equal(calls[0].body.origin, "http://localhost:3100");
+  } finally {
+    if (previous === undefined) delete process.env.HABLABLA_SPEECH_API_KEY;
+    else process.env.HABLABLA_SPEECH_API_KEY = previous;
+  }
+});

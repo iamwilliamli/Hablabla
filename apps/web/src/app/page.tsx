@@ -19,6 +19,7 @@ import { MeetingDialog } from "@/components/meeting-dialog";
 import { ModelStatus, phaseLabels } from "@/components/model-status";
 import { SpeechInput } from "@/components/speech-input";
 import { ResearchPanel } from "@/components/research-panel";
+import { TranscriptDraft } from "@/components/transcript-draft";
 import {
   RecordingsLibrary,
   WorkspaceOverview,
@@ -71,6 +72,7 @@ export default function Home() {
   const [dialog, setDialog] = useState<"import" | "edit" | "privacy" | null>(
     null,
   );
+  const [speechBusy, setSpeechBusy] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftTranscript, setDraftTranscript] = useState("");
   const [recaps, setRecaps] = useState<Record<string, MeetingResult>>({});
@@ -201,6 +203,7 @@ export default function Home() {
     setSidebarOpen(false);
   }
   function openMeetingDialog(kind: "import" | "edit") {
+    setSpeechBusy(false);
     setDraftTitle(kind === "edit" ? meeting.title : "");
     setDraftTranscript(kind === "edit" ? meeting.transcript : "");
     setDialog(kind);
@@ -253,6 +256,7 @@ export default function Home() {
   }
   function importMeeting(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (speechBusy) return;
     const data = new FormData(event.currentTarget);
     const title = String(data.get("title") ?? "").trim();
     const transcript = String(data.get("transcript") ?? "").trim();
@@ -683,6 +687,14 @@ export default function Home() {
                 </span>
               </div>
               <div className="meeting-heading-actions">
+                <button
+                  className="button compact"
+                  disabled={busy}
+                  onClick={() => openMeetingDialog("edit")}
+                >
+                  <Icon name="upload" size={15} />
+                  Transcribe with MOSS
+                </button>
                 <button
                   className="button compact"
                   disabled={busy}
@@ -1374,24 +1386,25 @@ export default function Home() {
         <MeetingDialog
           title={
             dialog === "edit"
-              ? "Edit transcript"
+              ? "Update meeting transcript"
               : "Add a patient visit"
           }
           onClose={() => setDialog(null)}
+          busy={speechBusy}
         >
           <p className="dialog-intro">
             {dialog === "edit"
-              ? "Make corrections to the meeting title or transcript."
+              ? `Transcribe a recording for “${meeting.title}” or edit its text. Meetings do not retain audio; choose the recording below. Your saved transcript changes only when you select Update meeting.`
               : "Add a recording, use live captions, or paste text. The finished transcript stays in this browser session and clears when you reload."}
           </p>
-          {dialog === "import" && (
-            <SpeechInput
+          <SpeechInput
+              editing={dialog === "edit"}
+              onBusyChange={setSpeechBusy}
               onTranscript={(transcript) => {
                 setDraftTranscript(transcript);
                 if (!draftTitle) setDraftTitle("Patient visit");
               }}
             />
-          )}
           <form onSubmit={importMeeting} className="meeting-form">
             <label htmlFor="meeting-title">Visit title</label>
             <input
@@ -1404,19 +1417,7 @@ export default function Home() {
               onChange={(event) => setDraftTitle(event.target.value)}
               placeholder="e.g. Follow-up visit"
             />
-            <label htmlFor="meeting-transcript">
-              Conversation transcript or visit notes
-            </label>
-            <textarea
-              required
-              id="meeting-transcript"
-              name="transcript"
-              rows={10}
-              maxLength={50000}
-              value={draftTranscript}
-              onChange={(event) => setDraftTranscript(event.target.value)}
-              placeholder="Doctor [00:00]: What brings you in today?\n\nPatient [00:04]: I’ve had…"
-            />
+            <TranscriptDraft value={draftTranscript} onChange={setDraftTranscript} />
             <p className="form-hint">
               The speech backend uses generic speaker labels. Confirm which
               speaker is the doctor and patient before using the draft notes.
@@ -1425,11 +1426,12 @@ export default function Home() {
               <button
                 type="button"
                 className="button"
+                disabled={speechBusy}
                 onClick={() => setDialog(null)}
               >
                 Cancel
               </button>
-              <button type="submit" className="button primary">
+              <button type="submit" className="button primary" disabled={speechBusy}>
                 <Icon name="plus" size={16} />
                 {dialog === "edit" ? "Update meeting" : "Add to workspace"}
               </button>
