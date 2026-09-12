@@ -1,15 +1,38 @@
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+import { join, isAbsolute } from "node:path";
 import { createHash } from "node:crypto";
 import { realpath, readFile, stat } from "node:fs/promises";
 import { extname } from "node:path";
 import type { Resource } from "./storage.js";
 
-const helper = fileURLToPath(new URL("../dist/companion-native", import.meta.url));
-export async function native(request: Record<string, unknown>): Promise<{ value?: string }> {
+export function companionAppPath() {
+  const override = process.env.HABLABLA_COMPANION_APP;
+  if (override !== undefined && (!isAbsolute(override) || !override.endsWith(".app"))) {
+    throw new Error("HABLABLA_COMPANION_APP must be an absolute .app bundle path.");
+  }
+  return override ?? join(homedir(), "Applications", "Hablabla Companion.app");
+}
+const executablePath = () => join(companionAppPath(), "Contents", "MacOS", "HablablaCompanion");
+export async function appIdentity() {
+  const identity = await native({ op: "identity" });
+  if (identity.value !== "com.hablabla.companion" || !identity.version || !identity.bundlePath) {
+    throw new Error("Installed app has an unexpected identity. Rebuild and reinstall the companion.");
+  }
+  return identity;
+}
+export async function launchCompanionApp() {
+  await appIdentity();
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("/usr/bin/open", [companionAppPath()], { stdio: "ignore", shell: false });
+    child.on("error", reject);
+    child.on("close", code => code === 0 ? resolve() : reject(new Error("Unable to launch the companion app.")));
+  });
+}
+export async function native(request: Record<string, unknown>): Promise<{ value?: string; version?: string; bundlePath?: string }> {
   if (process.platform !== "darwin") throw new Error("The companion OS adapter requires macOS.");
   return new Promise((resolve, reject) => {
-    const child = spawn(helper, [], { stdio: ["pipe", "pipe", "pipe"], shell: false });
+    const child = spawn(executablePath(), ["--stdio"], { stdio: ["pipe", "pipe", "pipe"], shell: false });
     let output = "";
     // Never echo native output on failure: Keychain responses may contain a token.
     const timeout = setTimeout(() => { child.kill(); reject(new Error("Native helper timed out; outcome may be unknown.")); }, 15000);
@@ -19,7 +42,7 @@ export async function native(request: Record<string, unknown>): Promise<{ value?
     });
     child.stderr.resume();
     child.stdin.on("error", () => {});
-    child.on("error", () => { clearTimeout(timeout); reject(new Error("Native helper unavailable. Run npm run companion:build.")); });
+    child.on("error", () => { clearTimeout(timeout); reject(new Error("Native helper unavailable. Run npm run companion:build and npm run companion:install.")); });
     child.on("close", code => {
       clearTimeout(timeout);
       if (code !== 0) return reject(new Error("Native operation failed; check macOS permissions and the registered resource."));

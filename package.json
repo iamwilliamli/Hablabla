@@ -25,7 +25,9 @@
     "verify": "npm run typecheck && npm test",
     "companion": "npm run start --workspace companion --",
     "companion:build": "npm run build:native --workspace companion",
-    "companion:demo": "npm run demo-relay --workspace companion --"
+    "companion:demo": "npm run demo-relay --workspace companion --",
+    "companion:install": "npm run install:app --workspace companion",
+    "companion:check-app": "npm run test:bundle --workspace companion"
   },
   "overrides": {
     "@ag-ui/client": "0.0.59"

@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { acquireLock, configSchema, getConfig, readJSON, unlock, writePrivate, type Config } from "./storage.js";
-import { fingerprint, keychain, openResource, validateResource } from "./native.js";
+import { fingerprint, keychain, openResource, validateResource, appIdentity, launchCompanionApp } from "./native.js";
 import { RelayClient } from "./client.js";
 import { pairingResponse, resourceId } from "./protocol.js";
 import { runCompanion } from "./runner.js";
@@ -18,6 +18,9 @@ const directory = resolve(invocationDirectory, parsed.values["state-dir"] ?? joi
 const [command, ...args] = parsed.positionals;
 const help = `Hablabla Mac companion (Terminal prototype)
   npm run companion:build
+  npm run companion:install
+  npm run companion -- app
+  npm run companion -- app-info
   npm run companion -- register <resource-id> <file> [--name "Presentation"]
   npm run companion -- list
   npm run companion -- remove <resource-id>
@@ -41,6 +44,11 @@ async function prompt(question: string, signal?: AbortSignal) {
 }
 async function main() {
   if (!command || command === "help") { console.log(help); return; }
+  if (command === "app") {
+    await launchCompanionApp();
+    console.log("Background helper launched. Start the companion in Terminal to connect and approve requests."); return;
+  }
+  if (command === "app-info") { console.log(JSON.stringify(await appIdentity(), null, 2)); return; }
   if (command === "unlock") { await unlock(directory); console.log("Stale lock removed."); return; }
   const release = await acquireLock(directory);
   try {

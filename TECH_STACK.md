@@ -77,7 +77,9 @@ The user explicitly assigned companion implementation after the initial handoff.
 - Concrete schemas currently live in `apps/companion/src/protocol.ts`. The v1 transport uses authenticated connect/poll/heartbeat/authorize/events/revoke HTTP endpoints. The earlier candidate endpoints in section 21 remain a dashboard/backend design; use the companion protocol document for the implemented wire format before extracting a shared package.
 - `npm run verify` passed **112 tests** (the original 97 plus 15 companion tests) and every workspace typecheck. The Swift helper compiled and the web production build passed. A live paired request opened the bundled TXT document, observed in TextEdit; denial and Ctrl+C cancellation reached the relay. Test credentials were revoked and removed afterward.
 - `succeeded / open_dispatched` means macOS accepted the file-open request. The smoke test separately observed its visible window. The prototype does not return screen images or prove visibility automatically.
-- Capture/streaming, keyboard/mouse control, window management, menu-bar UI, voice, server-side AI, public relay authentication/deployment, and `/devices` are still unimplemented. Local meeting-AI verification remains paused.
+- The native helper is now packaged as `Hablabla Companion.app` with bundle ID `com.hablabla.companion`, installed by `companion:install` at `~/Applications/Hablabla Companion.app`. The CLI uses its bundled executable. A minimal About/Quit menu is implemented; pairing and approval remain in Terminal.
+- Packaging checks passed: 113 repository tests/typechecks, three bundle tests, installed-app identity/signature, Keychain round-trip, and an approved live document-open request. The local build uses ad-hoc signing; certificate signing can be selected explicitly with `HABLABLA_SIGNING_IDENTITY`. Ad-hoc rebuilds do not guarantee retained macOS permission grants.
+- Capture/streaming, keyboard/mouse control, window management, full menu-bar connection/approval controls, voice, server-side AI, public relay authentication/deployment, and `/devices` are still unimplemented. Local meeting-AI verification remains paused.
 
 
 ## 1. Meeting-workspace summary
@@ -657,11 +659,14 @@ A later WebRTC stream is a proposed media transport, with authenticated signalin
 
 ### Next companion milestone: permissions and one capture
 
-This is the next implementation plan, not a report that the settings or code
-already exist. Package the Swift helper as a background `Hablabla Companion.app`
-with a consistent app identity, then add permission checks and setup controls.
-The current helper is a command-line executable supporting Keychain and
-`open_resource` only; it has no permission-status or screen-capture operation.
+The app packaging is implemented: fixed bundle ID `com.hablabla.companion`,
+user install path, signature verification, and a minimal About/Quit menu. The
+CLI invokes its bundled executable with `--stdio` for Keychain and
+`open_resource`. Permission checks, setup controls, and screen capture are the
+next implementation step; no permission-status or capture operation exists yet.
+The local build is ad-hoc signed; retaining grants across changed builds needs
+a compatible signing identity and verification. See the companion README for
+the explicit certificate-signing option and launch-context limitation.
 
 The proposed setup separates screen viewing from control: request screen access
 for one user-selected display/window, then add Accessibility-backed window/input

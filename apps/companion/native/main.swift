@@ -10,11 +10,17 @@ func emit(_ value: [String: String]) {
     FileHandle.standardOutput.write(data)
 }
 func fail() -> Never { emit(["error": "native_operation_failed"]); exit(1) }
+func handleRequest() {
+// --stdio is reserved for the local Terminal runner; Finder launch never reads stdin.
 let data = FileHandle.standardInput.readDataToEndOfFile()
 guard data.count < 16384,
       let request = try? JSONSerialization.jsonObject(with: data) as? [String: String],
       let op = request["op"] else { fail() }
-if op == "open_resource" {
+if op == "identity" {
+    guard let id = Bundle.main.bundleIdentifier,
+          let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else { fail() }
+    emit(["value": id, "version": version, "bundlePath": Bundle.main.bundlePath])
+} else if op == "open_resource" {
     guard let path = request["path"], path.hasPrefix("/"), let expected = request["sha256"] else { fail() }
     let url = URL(fileURLWithPath: path)
     let allowed = ["pdf", "ppt", "pptx", "key", "txt"]
@@ -58,4 +64,63 @@ if op == "open_resource" {
         emit(["value": "deleted"])
     default: fail()
     }
+}
+
+}
+
+final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
+    private var statusItem: NSStatusItem?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let image = NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: "Hablabla Companion") {
+            image.isTemplate = true
+            item.button?.image = image
+        } else { item.button?.title = "HB" }
+        item.button?.toolTip = "Hablabla Companion — native helper"
+        item.button?.setAccessibilityLabel("Hablabla Companion")
+        let menu = NSMenu()
+        let title = NSMenuItem(title: "Hablabla Companion", action: nil, keyEquivalent: "")
+        title.isEnabled = false
+        menu.addItem(title)
+        menu.addItem(NSMenuItem(title: "Connection and approvals run in Terminal", action: nil, keyEquivalent: ""))
+        menu.addItem(.separator())
+        let about = NSMenuItem(title: "About Hablabla Companion…", action: #selector(showAbout), keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
+        let quit = NSMenuItem(title: "Quit Helper", action: #selector(quitHelper), keyEquivalent: "q")
+        quit.target = self
+        menu.addItem(quit)
+        item.menu = menu
+        statusItem = item
+        showAbout()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { showAbout() }
+        return true
+    }
+
+    @objc private func showAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Hablabla Companion"
+        alert.informativeText = "Native helper for approved document opening.\n\nPairing, the device connection, and approval prompts run in your Terminal. Quitting this menu-bar helper does not stop that separate Terminal process.\n\nScreen capture and remote input are not enabled in this version."
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    @objc private func quitHelper() { NSApp.terminate(nil) }
+}
+
+if CommandLine.arguments.dropFirst().elementsEqual(["--stdio"]) {
+    handleRequest()
+} else if CommandLine.arguments.count == 1 {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    let delegate = CompanionAppDelegate()
+    app.delegate = delegate
+    withExtendedLifetime(delegate) { app.run() }
+} else {
+    fail()
 }
