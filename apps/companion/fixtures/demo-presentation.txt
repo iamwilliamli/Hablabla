@@ -1,0 +1,8 @@
+Hablabla companion — demo presentation
+
+This local sample was opened by the Terminal companion.
+
+The prototype pairs a device, receives a typed open_resource request,
+asks for local approval, opens a registered document, and reports the result.
+
+Screen capture, remote input, and AI planning are separate future capabilities.
