@@ -17,6 +17,32 @@ Do not resume model downloads or GPU experiments from this handbook's schedule
 unless asked. Native speech/pyannote and persisted meeting/analysis management
 remain integration work. Existing meeting imports and chats are session-only.
 
+### Speaker identity module update — September 12, 2026
+
+`apps/speaker-identity/` now contains an isolated, local Python module for
+**opt-in speaker-profile enrollment and tentative identification**. It stores
+normalized, model-versioned speaker embeddings and enrollment metadata in a
+local SQLite database (`.data/hablabla/speakers.sqlite3` by default); it does
+not store raw audio or transcripts. The database is ignored by Git.
+
+- Enrollment requires an explicit `--consent` flag. Profiles can be listed and
+  permanently deleted locally.
+- Identification uses cosine similarity plus a runner-up margin. It returns a
+  suggestion for human confirmation, never an authentication or authorization
+  decision.
+- The optional audio adapter uses `pyannote/embedding` on clean,
+  single-speaker clips. It is intentionally separate from diarization: the
+  speech bridge must first provide a correctly segmented speaker clip.
+- The module includes SQLite/matching unit tests, but they have not been run on
+  the current Windows setup because it has no usable Python runtime. The demo
+  Mac still needs Python 3.10+, the model's accepted terms and local token,
+  real enrollment samples, and threshold calibration before this can be called
+  a verified feature.
+
+This module is a local storage and matching building block for William and
+Renzo's speaker-processing work. Ahmad's UI must show any result as a possible
+match and obtain confirmation before changing a visible speaker name.
+
 The separate computer companion now has an implemented Terminal prototype in
 `apps/companion/` (pairing, Keychain credentials, local approval, and registered
 document opening), plus an installed `Hablabla Companion.app` native bundle.

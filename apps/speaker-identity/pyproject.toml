@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hablabla-speaker-identity"
+version = "0.1.0"
+description = "Local, consent-based speaker profile storage and matching for Hablabla"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "pyannote.audio>=3.3",
+]
+
+[project.scripts]
+hablabla-speakers = "speaker_identity.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["speaker_identity*"]
