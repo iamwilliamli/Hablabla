@@ -1,0 +1,6 @@
+.recording { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid #aebb9f; border-radius: 9px; }
+.heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; font-size: 12px; }
+.heading span { overflow-wrap: anywhere; min-width: 0; }
+.recording audio { display: block; width: 100%; min-width: 0; height: 40px; }
+.recording a { color: inherit; font-size: 12px; text-underline-offset: 3px; justify-self: start; }
+.recording small { font-size: 11px; line-height: 1.5; opacity: .8; }

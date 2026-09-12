@@ -1,3 +1,5 @@
+import { recordingFromPcm } from "./recording-audio";
+
 export type LiveSpeechState = "loading" | "listening" | "finishing" | "completed" | "cancelled" | "error";
 export type LiveSpeechOptions = {
   model: "nemotron" | "parakeet";
@@ -5,6 +7,7 @@ export type LiveSpeechOptions = {
   hotwords: string[];
   onState: (state: LiveSpeechState, message: string) => void;
   onText: (text: string, final: boolean) => void;
+  onRecording?: (recording: File) => void;
 };
 
 export function parseLiveHotwords(input: string) {
@@ -28,12 +31,15 @@ export function createLiveSpeech(options: LiveSpeechOptions) {
   let finishing = false;
   let revision = -1;
   let sequence = 0;
+  const chunks: ArrayBuffer[] = [];
+  let recordingSaved = false;
   const abort = new AbortController();
 
   function cleanup() {
     active = false;
     clearTimeout(timer);
     abort.abort();
+    chunks.length = 0;
     media?.getTracks().forEach(track => track.stop());
     source?.disconnect();
     worklet?.disconnect();
@@ -119,12 +125,19 @@ export function createLiveSpeech(options: LiveSpeechOptions) {
       source = context!.createMediaStreamSource(stream);
       worklet = new AudioWorkletNode(context!, "hablabla-pcm16");
       worklet.port.onmessage = ({ data }) => {
-        if (!active || socket?.readyState !== WebSocket.OPEN) return;
+        if (!active) return;
         if (data?.type === "flushed") {
-          if (finishing) socket.send(JSON.stringify({ type: "finish" }));
+          if (finishing && !recordingSaved) {
+            recordingSaved = true;
+            if (chunks.length) options.onRecording?.(recordingFromPcm(chunks));
+            chunks.length = 0;
+            if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "finish" }));
+          }
           return;
         }
-        if (!(data instanceof ArrayBuffer)) return;
+        if (!(data instanceof ArrayBuffer) || recordingSaved) return;
+        chunks.push(data);
+        if (socket?.readyState !== WebSocket.OPEN) return;
         if (socket.bufferedAmount > 1024 * 1024) { fail("The speech connection is too slow. Please try again."); return; }
         const packet = new ArrayBuffer(8 + data.byteLength);
         const view = new DataView(packet);

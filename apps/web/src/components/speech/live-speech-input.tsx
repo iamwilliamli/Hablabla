@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { createLiveSpeech, parseLiveHotwords, type LiveSpeechState } from "@/lib/live-speech";
 import { Icon } from "../icons";
 
-export function LiveSpeechInput({ connected, nemotronAvailable, onTranscript, onBusyChange, editing = false }: {
+export function LiveSpeechInput({ connected, nemotronAvailable, onTranscript, onBusyChange, onRecording, editing = false, disabled = false }: {
   editing?: boolean;
+  disabled?: boolean;
   connected: boolean;
   nemotronAvailable: boolean;
   onTranscript: (text: string) => void;
   onBusyChange: (busy: boolean) => void;
+  onRecording: (recording: File) => void;
 }) {
   const [selectedModel, setModel] = useState<"nemotron" | "parakeet" | null>(null);
   const model = selectedModel ?? (nemotronAvailable ? "nemotron" : "parakeet");
@@ -29,13 +31,13 @@ export function LiveSpeechInput({ connected, nemotronAvailable, onTranscript, on
     return () => clearInterval(timer);
   }, [state]);
   function start() {
-    if (busy) return;
+    if (busy || disabled) return;
     try {
       const words = model === "nemotron" ? parseLiveHotwords(hotwords) : [];
       session.current?.dispose();
       setText(""); setSeconds(0);
       session.current = createLiveSpeech({
-        model, language, hotwords: words,
+        model, language, hotwords: words, onRecording,
         onState(next, message) {
           setState(next); setStatus(editing && next === "completed" && message.startsWith("Transcript ready") ? "Transcript ready. Review the words before updating this meeting." : message);
           onBusyChange(next === "loading" || next === "listening" || next === "finishing");
@@ -50,18 +52,18 @@ export function LiveSpeechInput({ connected, nemotronAvailable, onTranscript, on
   }
   return <div className="live-speech">
     <div className="live-speech-options">
-      <label>Transcription model<select value={model} disabled={busy} onChange={event => { setModel(event.target.value as typeof model); setLanguage("en"); }}>
+      <label>Transcription model<select value={model} disabled={busy || disabled} onChange={event => { setModel(event.target.value as typeof model); setLanguage("en"); }}>
         <option value="nemotron" disabled={!nemotronAvailable}>Nemotron · multilingual{!nemotronAvailable ? " (unavailable)" : ""}</option>
         <option value="parakeet">Parakeet</option>
       </select></label>
-      <label>Spoken language<select value={language} disabled={busy} onChange={event => setLanguage(event.target.value)}>
+      <label>Spoken language<select value={language} disabled={busy || disabled} onChange={event => setLanguage(event.target.value)}>
         <option value="en">English</option>
         {model === "nemotron" && <><option value="zh">中文</option><option value="ja">日本語</option></>}
         <option value="es">Español</option><option value="fr">Français</option><option value="de">Deutsch</option>
       </select></label>
     </div>
     {model === "nemotron" && <label className="live-hotwords">Hotwords <span>Optional</span>
-      <input value={hotwords} disabled={busy} maxLength={5200} onChange={event => setHotwords(event.target.value)} placeholder="e.g. amoxicillin, allergy, 250 milligrams" aria-describedby="live-hotwords-hint" />
+      <input value={hotwords} disabled={busy || disabled} maxLength={5200} onChange={event => setHotwords(event.target.value)} placeholder="e.g. amoxicillin, allergy, 250 milligrams" aria-describedby="live-hotwords-hint" />
       <small id="live-hotwords-hint">Separate terms with commas. Up to 64 terms.</small>
     </label>}
     <div className="speech-controls live-recorder">
@@ -70,7 +72,7 @@ export function LiveSpeechInput({ connected, nemotronAvailable, onTranscript, on
       {busy ? <>
         {state === "listening" && <button type="button" className="button primary" onClick={() => session.current?.finish()}><Icon name="stop" size={16} /> Finish</button>}
         <button type="button" className="button" onClick={() => session.current?.cancel()}>Cancel</button>
-      </> : <button type="button" className="button primary" onClick={start} disabled={!connected}>Start recording</button>}
+      </> : <button type="button" className="button primary" onClick={start} disabled={!connected || disabled}>Start recording</button>}
     </div>
     {status && <p className="speech-status" role={state === "error" ? "alert" : "status"}>{status}</p>}
     {text && <div className="live-transcript"><div><strong>Live transcript</strong><span>{state === "completed" ? "Final" : "Partial · may change"}</span></div><p>{text}</p></div>}

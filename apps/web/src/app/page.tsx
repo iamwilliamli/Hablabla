@@ -73,6 +73,7 @@ export default function Home() {
     null,
   );
   const [speechBusy, setSpeechBusy] = useState(false);
+  const [draftRecording, setDraftRecording] = useState<File>();
   const [draftTitle, setDraftTitle] = useState("");
   const [draftTranscript, setDraftTranscript] = useState("");
   const [recaps, setRecaps] = useState<Record<string, MeetingResult>>({});
@@ -204,6 +205,7 @@ export default function Home() {
   }
   function openMeetingDialog(kind: "import" | "edit") {
     setSpeechBusy(false);
+    setDraftRecording(kind === "edit" ? meeting.recording : undefined);
     setDraftTitle(kind === "edit" ? meeting.title : "");
     setDraftTranscript(kind === "edit" ? meeting.transcript : "");
     setDialog(kind);
@@ -266,7 +268,7 @@ export default function Home() {
       setMeetings((current) =>
         current.map((item) =>
           item.id === selectedId
-            ? { ...item, id, title, transcript, sample: false }
+            ? { ...item, id, title, transcript, recording: draftRecording, sample: false }
             : item,
         ),
       );
@@ -276,6 +278,7 @@ export default function Home() {
           id,
           title,
           transcript,
+          recording: draftRecording,
           date: new Intl.DateTimeFormat("en", {
             month: "long",
             day: "numeric",
@@ -1394,11 +1397,13 @@ export default function Home() {
         >
           <p className="dialog-intro">
             {dialog === "edit"
-              ? `Transcribe a recording for “${meeting.title}” or edit its text. Meetings do not retain audio; choose the recording below. Your saved transcript changes only when you select Update meeting.`
+              ? `Update “${meeting.title}” using ${meeting.recording ? "its saved recording" : "an audio recording"}, or edit its text. Review the result before selecting Update meeting.`
               : "Add a recording, use live captions, or paste text. The finished transcript stays in this browser session and clears when you reload."}
           </p>
           <SpeechInput
               editing={dialog === "edit"}
+              initialRecording={draftRecording}
+              onRecording={setDraftRecording}
               onBusyChange={setSpeechBusy}
               onTranscript={(transcript) => {
                 setDraftTranscript(transcript);

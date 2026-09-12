@@ -7,6 +7,7 @@ export type Meeting = {
   category: string;
   participants: string[];
   transcript: string;
+  recording?: File;
   sample: boolean;
 };
 

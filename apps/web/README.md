@@ -38,6 +38,14 @@ visit dialog reports whether speech is connected and shows queued, processing,
 completed, failed, and cancelled states. MOSS speaker IDs remain generic until
 a clinician corrects them; the app does not infer who is the doctor or patient.
 
+Live capture retains a 16 kHz WAV after **Finish**, and uploaded files are kept
+with the meeting when it is added or updated. Open **Transcribe with MOSS** on
+an existing meeting to reuse that saved file without selecting it again. The
+recording panel also offers playback and **Download audio**. Audio stays in
+browser memory for this session and is lost on reload; older meetings created
+before audio retention may contain only transcript text. MOSS results remain a
+draft until **Update meeting** is selected.
+
 Imported meetings, recaps and chat are kept in memory for this session. Download the recap before refreshing. No transcript is persisted by the backend. Model artifacts are cached by WebLLM in the browser.
 
 ## Research a visit question

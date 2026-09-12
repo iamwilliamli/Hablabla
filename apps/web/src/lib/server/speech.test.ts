@@ -128,3 +128,28 @@ test("Nemotron proxy forwards multilingual hotwords and rejects a foreign origin
     else process.env.HABLABLA_SPEECH_API_KEY = previous;
   }
 });
+
+test("MOSS accepts the saved live WAV unchanged without a new file selection", async () => {
+  const { recordingFromPcm } = await import("../recording-audio");
+  const previous = process.env.HABLABLA_SPEECH_API_KEY;
+  process.env.HABLABLA_SPEECH_API_KEY = "partner-secret";
+  const recording = recordingFromPcm([new Int16Array([2, -3, 4]).buffer]);
+  let forwarded: File | undefined;
+  const fetcher = async (_url: string | URL | Request, init?: RequestInit) => {
+    forwarded = (init!.body as FormData).get("audio") as File;
+    return Response.json({jobId: "saved-audio", status: "queued"}, {status: 202});
+  };
+  try {
+    const body = new FormData(); body.set("audio", recording, recording.name);
+    const response = await createMossTranscription(new Request("http://localhost:3100/api/speech/transcriptions", {
+      method: "POST", headers: {host: "localhost:3100", origin: "http://localhost:3100", "idempotency-key": "saved-audio"}, body,
+    }), fetcher as typeof fetch);
+    assert.equal(response.status, 202);
+    assert.equal(forwarded?.type, "audio/wav");
+    assert.equal(forwarded?.name, recording.name);
+    assert.deepEqual(await forwarded?.arrayBuffer(), await recording.arrayBuffer());
+  } finally {
+    if (previous === undefined) delete process.env.HABLABLA_SPEECH_API_KEY;
+    else process.env.HABLABLA_SPEECH_API_KEY = previous;
+  }
+});

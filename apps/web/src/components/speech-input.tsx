@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons";
 import { LiveSpeechInput } from "./speech/live-speech-input";
+import { RecordingPreview } from "./speech/recording-preview";
 
 type SpeechError = { code?: string; message?: string; retryable?: boolean; requestId?: string };
 type MossSegment = { id: string; startMs: number; endMs: number; speakerId: string | null; text: string };
@@ -37,18 +38,22 @@ function transcriptFromJob(job: MossJob) {
     .join("\n\n");
 }
 
-export function SpeechInput({ onTranscript, onBusyChange, editing = false }: {
+export function SpeechInput({ onTranscript, onBusyChange, onRecording, initialRecording, editing = false }: {
   onTranscript: (transcript: string) => void;
+  onRecording: (recording: File) => void;
+  initialRecording?: File;
   onBusyChange?: (busy: boolean) => void;
   editing?: boolean;
 }) {
   const [mode, setMode] = useState<"upload" | "live">("upload");
   const [connection, setConnection] = useState<"checking" | "connected" | "offline" | "needs-configuration">("checking");
-  const [file, setFile] = useState<File>();
+  const [file, setFile] = useState<File | undefined>(initialRecording);
   const [job, setJob] = useState<MossJob>();
   const [status, setStatus] = useState("");
   const [requestId, setRequestId] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [mossBusy, setMossBusy] = useState(false);
+  const [liveBusy, setLiveBusy] = useState(false);
+  const busy = mossBusy || liveBusy;
   const idempotencyKey = useRef(crypto.randomUUID());
   const pollController = useRef<AbortController | null>(null);
   const [nemotronAvailable, setNemotronAvailable] = useState(false);
@@ -73,7 +78,9 @@ export function SpeechInput({ onTranscript, onBusyChange, editing = false }: {
   }, []);
 
   function chooseFile(nextFile?: File) {
+    if (!nextFile) return;
     setFile(nextFile);
+    onRecording(nextFile);
     setJob(undefined);
     setStatus("");
     setRequestId("");
@@ -107,7 +114,7 @@ export function SpeechInput({ onTranscript, onBusyChange, editing = false }: {
         if (!transcript) throw new Error("The recording finished without any speech to add.");
         onTranscript(transcript);
         setStatus(editing ? "Transcript ready. Review it below, then update this meeting." : "Transcript ready. Review it below, then add the meeting.");
-        setBusy(false);
+        setMossBusy(false);
         return;
       }
       if (next.status === "failed") {
@@ -116,7 +123,7 @@ export function SpeechInput({ onTranscript, onBusyChange, editing = false }: {
       }
       if (next.status === "cancelled") {
         setStatus("Transcription cancelled.");
-        setBusy(false);
+        setMossBusy(false);
         return;
       }
     }
@@ -124,8 +131,10 @@ export function SpeechInput({ onTranscript, onBusyChange, editing = false }: {
 
   async function upload() {
     if (!file || busy) return;
-    setBusy(true);
-    setStatus("Uploading recording…");
+    if (job && ["completed", "failed", "cancelled"].includes(job.status)) idempotencyKey.current = crypto.randomUUID();
+    setJob(undefined);
+    setMossBusy(true);
+    setStatus("Sending the saved recording to MOSS…");
     setRequestId("");
     const form = new FormData();
     form.set("audio", file, file.name);
@@ -142,7 +151,7 @@ export function SpeechInput({ onTranscript, onBusyChange, editing = false }: {
       await poll(created.jobId);
     } catch (error) {
       if ((error as Error).name !== "AbortError") setStatus(error instanceof Error ? error.message : "Upload failed.");
-      setBusy(false);
+      setMossBusy(false);
     }
   }
 
@@ -156,7 +165,7 @@ export function SpeechInput({ onTranscript, onBusyChange, editing = false }: {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not cancel transcription.");
     } finally {
-      setBusy(false);
+      setMossBusy(false);
     }
   }
 
@@ -171,23 +180,30 @@ export function SpeechInput({ onTranscript, onBusyChange, editing = false }: {
         <span className={`speech-connection ${connection}`}>{connection === "connected" ? "Speech ready" : connection === "checking" ? "Checking…" : "Speech offline"}</span>
       </div>
       <div className="speech-mode" role="tablist" aria-label="Audio source">
-        <button type="button" role="tab" aria-selected={mode === "upload"} onClick={() => setMode("upload")} disabled={busy}>Upload recording</button>
+        <button type="button" role="tab" aria-selected={mode === "upload"} onClick={() => setMode("upload")} disabled={busy}>{file ? "Saved recording" : "Upload recording"}</button>
         <button type="button" role="tab" aria-selected={mode === "live"} onClick={() => setMode("live")} disabled={busy}>Live transcription</button>
       </div>
       {mode === "upload" ? (
         <div className="speech-controls">
           <label className="audio-picker">
             <Icon name="upload" size={19} />
-            <span>{file?.name || "Choose a visit recording"}</span>
+            <span>{file ? "Choose another recording" : "Choose a visit recording"}</span>
             <input type="file" accept="audio/*,video/mp4,video/webm" onChange={(event) => chooseFile(event.target.files?.[0])} disabled={busy} />
           </label>
-          {busy ? <button type="button" className="button" onClick={cancelJob}>Cancel</button> : <button type="button" className="button primary" onClick={upload} disabled={!file || connection !== "connected"}>Transcribe with MOSS</button>}
         </div>
       ) : (
-        <LiveSpeechInput connected={connection === "connected"} nemotronAvailable={nemotronAvailable} onTranscript={onTranscript} onBusyChange={setBusy} editing={editing} />
+        <LiveSpeechInput disabled={mossBusy} connected={connection === "connected"} nemotronAvailable={nemotronAvailable} onTranscript={onTranscript} onBusyChange={setLiveBusy} onRecording={chooseFile} editing={editing} />
       )}
-      {(busy || job) && mode === "upload" && <progress value={progress} max="100" aria-label={`Transcription ${progress}% complete`} />}
-      {mode === "upload" && status && <p className="speech-status" role="status">{status}{requestId && <small> Request ID: {requestId}</small>}</p>}
+      {file && <>
+        <RecordingPreview recording={file} />
+        <div className="speech-controls">
+          {mossBusy
+            ? <button type="button" className="button" onClick={cancelJob} disabled={!job}>Cancel MOSS transcription</button>
+            : <button type="button" className="button primary" onClick={upload} disabled={busy || connection !== "connected"}>Transcribe this recording with MOSS</button>}
+        </div>
+      </>}
+      {(mossBusy || job) && <progress value={progress} max="100" aria-label={`Transcription ${progress}% complete`} />}
+      {status && <p className="speech-status" role="status">{status}{requestId && <small> Request ID: {requestId}</small>}</p>}
     </section>
   );
 }
