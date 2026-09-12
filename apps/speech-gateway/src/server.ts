@@ -333,8 +333,15 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
   }
 
   if (request.method === "POST" && url.pathname === "/v1/parakeet/sessions") {
-    const body = JSON.parse((await readBody(request, 32_768)).toString("utf8")) as Record<string, unknown>;
-    const origin = typeof body.origin === "string" ? new URL(body.origin).origin : "";
+    let body: Record<string, unknown>;
+    let origin = "";
+    try {
+      body = JSON.parse((await readBody(request, 32_768)).toString("utf8")) as Record<string, unknown>;
+      origin = typeof body.origin === "string" ? new URL(body.origin).origin : "";
+    } catch {
+      sendError(response, 400, requestId, "INVALID_STREAM_CONFIG", "Send a valid JSON stream configuration.");
+      return;
+    }
     const language = typeof body.language === "string" ? body.language : "en";
     const audio = body.audio as Record<string, unknown> | undefined;
     if (!config.allowedOrigins.has(origin)) {

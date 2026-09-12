@@ -3,6 +3,21 @@ class HablablaPCM16Processor extends AudioWorkletProcessor {
     super();
     this.pending = new Int16Array(1600);
     this.count = 0;
+    this.port.onmessage = ({ data }) => {
+      if (data?.type !== "flush") return;
+      this.emitPending();
+      this.port.postMessage({ type: "flushed" });
+    };
+  }
+
+  emitPending() {
+    if (this.count === 0) return;
+    const packet = this.count === this.pending.length
+      ? this.pending
+      : this.pending.slice(0, this.count);
+    this.port.postMessage(packet.buffer, [packet.buffer]);
+    this.pending = new Int16Array(1600);
+    this.count = 0;
   }
 
   process(inputs) {
@@ -14,10 +29,7 @@ class HablablaPCM16Processor extends AudioWorkletProcessor {
       this.pending[this.count] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
       this.count += 1;
       if (this.count === this.pending.length) {
-        const packet = this.pending;
-        this.port.postMessage(packet.buffer, [packet.buffer]);
-        this.pending = new Int16Array(1600);
-        this.count = 0;
+        this.emitPending();
       }
     }
     return true;

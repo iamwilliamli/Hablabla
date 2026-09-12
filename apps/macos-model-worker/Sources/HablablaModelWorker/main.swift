@@ -249,7 +249,7 @@ private func stripSpeakerPrefix(_ text: String) -> String {
 
 private func runMOSS(arguments: Arguments, emitter: JSONLineEmitter) async throws {
     let input = URL(fileURLWithPath: try arguments.require("input"))
-    _ = try arguments.require("language")
+    let requestedLanguage = try arguments.require("language")
     let hotwordsData = Data(try arguments.require("hotwords-json").utf8)
     let hotwords = try JSONDecoder().decode([String].self, from: hotwordsData)
     try await emitter.write(ProgressEvent(progress: 0.02, stage: "decoding-audio"))
@@ -269,9 +269,16 @@ private func runMOSS(arguments: Arguments, emitter: JSONLineEmitter) async throw
         )
     }
     try await emitter.write(ProgressEvent(progress: 0.20, stage: "transcribing"))
-    let prompt = hotwords.isEmpty
+    var promptParts: [String] = []
+    if requestedLanguage != "auto" {
+        promptParts.append("The spoken language is \(requestedLanguage).")
+    }
+    if !hotwords.isEmpty {
+        promptParts.append("Hotwords: " + hotwords.joined(separator: ", ") + ".")
+    }
+    let prompt = promptParts.isEmpty
         ? nil
-        : "Transcribe with timestamps and speaker IDs. Hotwords: " + hotwords.joined(separator: ", ")
+        : "Transcribe with timestamps and speaker IDs. " + promptParts.joined(separator: " ")
     let output = model.generate(
         audio: audio,
         maxTokens: 4_096,
