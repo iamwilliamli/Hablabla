@@ -1,0 +1,321 @@
+openapi: 3.1.0
+info:
+  title: Hablabla Speech API
+  version: 1.0.0
+  description: |
+    Public contract for Parakeet v3 live transcription and MOSS offline
+    transcription. HTTP calls use a partner-server bearer key. A browser uses
+    only the one-time, origin-bound WebSocket URL returned by the session API.
+servers:
+  - url: https://speech.example.com
+    description: Replace with the deployed Hablabla speech URL
+tags:
+  - name: System
+  - name: Parakeet v3
+  - name: MOSS
+paths:
+  /healthz:
+    get:
+      tags: [System]
+      summary: Check gateway process liveness
+      security: []
+      responses:
+        "200":
+          description: Gateway process is accepting requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, const: ok }
+  /v1/capabilities:
+    get:
+      tags: [System]
+      summary: Read models, formats, and upload limits
+      responses:
+        "200":
+          description: Current server capabilities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Capabilities"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/parakeet/sessions:
+    post:
+      tags: [Parakeet v3]
+      summary: Create a one-time browser streaming session
+      description: |
+        Call from the partner server. The returned ticket expires after 60
+        seconds, can be used once, and is bound to the exact browser Origin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParakeetSessionRequest"
+            example:
+              origin: https://partner.example.com
+              language: en
+              audio:
+                encoding: pcm_s16le
+                sampleRateHz: 16000
+                channels: 1
+      responses:
+        "201":
+          description: One-time streaming ticket created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParakeetSession"
+        "400": { $ref: "#/components/responses/InvalidInput" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/OriginNotAllowed" }
+  /v1/parakeet/stream:
+    get:
+      tags: [Parakeet v3]
+      summary: Upgrade to the Parakeet v3 WebSocket stream
+      description: |
+        Browser-only WebSocket upgrade. Open the exact `websocketUrl` returned
+        by session creation. Send `{"type":"start"}`, framed binary PCM, then
+        `{"type":"finish"}`. See `speech-api-frontend.md` for the exact 8-byte
+        binary header and transcript event schema.
+      security: []
+      parameters:
+        - name: ticket
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "101": { description: Switching Protocols }
+        "403": { description: Missing, expired, reused, or origin-mismatched ticket }
+      x-websocket-protocol:
+        audio: 16 kHz mono signed Int16 little-endian PCM
+        binaryHeader: UInt32LE sequence followed by UInt32LE sampleCount
+        clientCommands: [start, finish]
+        serverEvents: [connected, progress, ready, transcript, error]
+  /v1/moss/transcriptions:
+    post:
+      tags: [MOSS]
+      summary: Upload a complete recording for offline transcription
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Reuse the same value only when retrying the same logical upload.
+          schema: { type: string, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: Complete WAV, M4A/AAC, MP3, MP4, WebM/Opus, or Ogg/Opus file.
+                language:
+                  type: string
+                  default: auto
+                  pattern: "^(auto|[a-z]{2}(-[A-Za-z]{2})?)$"
+                hotwords:
+                  type: string
+                  description: JSON-encoded string array; at most 64 terms and 80 characters per term.
+                  example: '["Hablabla","CopilotKit"]'
+                clientReference:
+                  type: string
+                  maxLength: 200
+      responses:
+        "202":
+          description: New job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MossJobCreated"
+        "200":
+          description: Existing job returned for a repeated idempotency key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MossJob"
+        "400": { $ref: "#/components/responses/InvalidInput" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413": { $ref: "#/components/responses/InvalidInput" }
+        "415": { $ref: "#/components/responses/InvalidInput" }
+  /v1/moss/transcriptions/{jobId}:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      tags: [MOSS]
+      summary: Poll an offline job
+      responses:
+        "200":
+          description: Current job state, progress, and result when completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MossJob"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [MOSS]
+      summary: Cancel a queued or running offline job
+      responses:
+        "200":
+          description: Cancelled or already-terminal job state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MossJob"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/moss/transcriptions/{jobId}/events:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      tags: [MOSS]
+      summary: Subscribe to offline job updates with SSE
+      description: Each `data:` payload is a MossJob. The stream ends at a terminal state.
+      responses:
+        "200":
+          description: Server-sent event stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+components:
+  securitySchemes:
+    partnerBearer:
+      type: http
+      scheme: bearer
+  parameters:
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    Unauthorized:
+      description: Missing or invalid partner bearer key
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    OriginNotAllowed:
+      description: Browser origin is not on the exact-match allowlist
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    InvalidInput:
+      description: Request body, audio, or stream configuration is invalid
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    NotFound:
+      description: Job does not exist or its retained result has expired
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+  schemas:
+    AudioFormat:
+      type: object
+      required: [encoding, sampleRateHz, channels]
+      properties:
+        encoding: { type: string, const: pcm_s16le }
+        sampleRateHz: { type: integer, const: 16000 }
+        channels: { type: integer, const: 1 }
+    Capabilities:
+      type: object
+      required: [streaming, offline]
+      properties:
+        streaming:
+          type: object
+          required: [model, transport, audio]
+          properties:
+            model: { type: string, const: parakeet-tdt-0.6b-v3 }
+            transport: { type: string, const: websocket }
+            audio: { $ref: "#/components/schemas/AudioFormat" }
+        offline:
+          type: object
+          required: [model, transport, acceptedContentTypes, maximumUploadBytes]
+          properties:
+            model: { type: string, const: moss-transcribe-diarize }
+            transport: { type: string, const: multipart-upload }
+            acceptedContentTypes:
+              type: array
+              items: { type: string }
+            maximumUploadBytes: { type: integer }
+    ParakeetSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [origin, language, audio]
+      properties:
+        origin: { type: string, format: uri }
+        language:
+          type: string
+          pattern: "^[a-z]{2}(-[A-Za-z]{2})?$"
+        audio: { $ref: "#/components/schemas/AudioFormat" }
+    ParakeetSession:
+      type: object
+      required: [sessionId, websocketUrl, ticketExpiresAt]
+      properties:
+        sessionId: { type: string }
+        websocketUrl: { type: string, format: uri }
+        ticketExpiresAt: { type: string, format: date-time }
+    MossJobCreated:
+      type: object
+      required: [jobId, status, statusUrl, eventsUrl]
+      properties:
+        jobId: { type: string }
+        status: { type: string, const: queued }
+        statusUrl: { type: string }
+        eventsUrl: { type: string }
+    MossSegment:
+      type: object
+      required: [id, startMs, endMs, text]
+      properties:
+        id: { type: string }
+        startMs: { type: integer, minimum: 0 }
+        endMs: { type: integer, minimum: 0 }
+        speakerId: { type: [string, "null"] }
+        text: { type: string }
+    MossResult:
+      type: object
+      required: [model, durationMs, text, segments]
+      properties:
+        model: { type: string, const: vanch007/mlx-MOSS-Transcribe-Diarize-4bit }
+        language: { type: [string, "null"] }
+        durationMs: { type: integer, minimum: 0 }
+        text: { type: string }
+        segments:
+          type: array
+          items: { $ref: "#/components/schemas/MossSegment" }
+    MossJob:
+      type: object
+      required: [jobId, status, progress, clientReference]
+      properties:
+        jobId: { type: string }
+        status:
+          type: string
+          enum: [queued, processing, completed, failed, cancelled]
+        progress: { type: number, minimum: 0, maximum: 1 }
+        clientReference: { type: [string, "null"] }
+        result: { $ref: "#/components/schemas/MossResult" }
+        error: { $ref: "#/components/schemas/ErrorBody" }
+    ErrorBody:
+      type: object
+      required: [code, message, retryable, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        retryable: { type: boolean }
+        requestId: { type: string }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: "#/components/schemas/ErrorBody" }
+security:
+  - partnerBearer: []

@@ -85,6 +85,10 @@ The user explicitly assigned companion implementation after the initial handoff.
 - Streaming, keyboard/mouse control, window management, full menu-bar connection/approval controls, voice, server-side AI, public relay authentication/deployment, and `/devices` are still unimplemented. Local meeting-AI verification remains paused.
 
 
+### Ownership correction and OpenAI backend status — September 12, 2026
+
+William does not own the frontend. Do not modify frontend code for his tasks unless he explicitly changes this boundary. Frontend changes for the Local / OpenAI switch were withdrawn; the meeting UI remains local-only. The unconnected server-side `/api/meeting-agent` prototype and tests are retained for backend work. Direct calls to this endpoint use OpenAI when a server API key is configured; the local-only descriptions below describe the existing meeting UI, not this optional endpoint. Live OpenAI requests remain unverified. Future frontend integration belongs to its frontend owners and requires explicit disclosure before sending meeting data.
+
 ## 1. Meeting-workspace summary
 
 Hablabla is a private meeting follow-through agent with a web frontend and a
