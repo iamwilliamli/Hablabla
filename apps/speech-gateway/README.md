@@ -50,6 +50,8 @@ completed.
 | `GET` | `/v1/capabilities` | Audio formats, models, and upload limit |
 | `POST` | `/v1/parakeet/sessions` | Create a one-time browser WebSocket ticket |
 | `WSS` | `/v1/parakeet/stream?ticket=...` | Send framed PCM and receive live text |
+| `POST` | `/v1/nemotron/sessions` | Create a multilingual live-transcription ticket with optional hotwords |
+| `WSS` | `/v1/nemotron/stream?ticket=...` | Send framed PCM and receive Nemotron live text |
 | `POST` | `/v1/moss/transcriptions` | Upload a complete file and create a queued job |
 | `GET` | `/v1/moss/transcriptions/:id` | Read job progress or result |
 | `GET` | `/v1/moss/transcriptions/:id/events` | Receive progress with SSE |
@@ -61,6 +63,9 @@ creation also requires a unique `Idempotency-Key` header.
 The [frontend speech API contract](../../dev-docs/speech-api-frontend.md) is the
 source of truth for exact request bodies, binary framing, response events,
 errors, and copyable browser/server examples.
+
+Start with the [English API usage guide](../../dev-docs/speech-api-usage.md)
+for current LAN URLs, copyable curl requests, PCM streaming, and job handling.
 
 ## Scheduling and retention
 
@@ -82,3 +87,16 @@ see [the frontend contract](../../dev-docs/speech-api-frontend.md#nemotron-multi
 for payloads, asset requirements, limits, and error behavior. The model directory
 must be a FluidAudio multilingual export, not the English-only model. Vocabulary
 bias needs logits-capable decoder assets and does not guarantee clinical accuracy.
+
+## Backend recording test page
+
+Run `npm run demo --workspace speech-gateway` from the repository root for the
+standalone English Speech Lab. For LAN HTTPS access, run
+`HABLABLA_DEMO_LAN=1 npm run demo --workspace speech-gateway`.
+See [the test console guide](demo/README.md) for recording, the Nemotron 3.5
+multilingual preset, certificate setup, quality comparisons, and test evidence.
+This diagnostic tool is separate from the team's product frontend.
+
+The [demo handoff](../../dev-docs/demo-speech-handoff.md) records the current LAN
+address and API examples, and explains how to run the teammate-owned frontend
+and a separately configured speech gateway together on the demo Mac.

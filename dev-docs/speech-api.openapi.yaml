@@ -268,7 +268,8 @@ components:
         nemotron:
           type: object
           properties:
-            model: { type: string, const: nemotron-multilingual }
+            model: { type: string, const: nemotron-3.5-asr-streaming-multilingual-0.6b }
+            chunkMs: { type: [integer, "null"], description: Chunk tier read from compatible model metadata }
             configured: { type: boolean, description: Directory configured; not a readiness check }
             transport: { type: string, const: websocket }
             hotwords: { type: boolean, const: true }

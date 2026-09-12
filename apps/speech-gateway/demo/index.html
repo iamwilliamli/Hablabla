@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speech Lab · Hablabla</title><link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to recording</a>
+  <header class="topbar"><a class="brand" href="/" aria-label="Hablabla Speech Lab"><span class="brand-icon" aria-hidden="true">h.</span>hablabla<span class="slash">/</span><span class="lab">Speech Lab</span></a><div class="connection"><span id="connection-dot" class="dot"></span><span id="connection">Connecting</span><button id="refresh" class="icon-button" aria-label="Refresh backend status">↻</button></div></header>
+  <main id="main">
+    <div class="heading"><div><p class="eyebrow">SPEECH AUDIO · BACKEND TEST</p><h1>Speak. Listen. Check the words.</h1><p class="intro">Test transcription, response time, and speaker segments with a real recording.</p></div><span class="local-label"><span class="dot green"></span>Processed on the demo Mac</span></div>
+    <div id="error" class="error" role="alert" hidden></div>
+    <div class="workspace">
+      <section class="panel input-panel" aria-labelledby="input-heading">
+        <div class="section-title"><span class="section-number">01</span><h2 id="input-heading">Record & upload</h2></div>
+        <div class="field"><label for="mode">Recording mode</label><select id="mode"><option value="record">Record only · transcribe with MOSS later</option><option value="parakeet">Parakeet · live transcription</option><option value="nemotron" disabled>Nemotron · model not configured</option></select><p id="mode-hint" class="hint">Record and listen first, then transcribe the full audio. MOSS can return speaker segments.</p></div>
+        <div class="field"><label for="language">Spoken language</label><select id="language"><option value="auto">Detect automatically</option><option value="zh">Chinese</option><option value="en">English</option><option value="es">Español</option><option value="fr">Français</option><option value="de">Deutsch</option></select></div>
+        <div class="field"><label for="hotwords">Hotwords <span>Optional</span></label><input id="hotwords" placeholder="e.g. amoxicillin, allergy, 250 milligrams" maxlength="5000"><p class="hint">Separate with commas. Up to 64 terms for MOSS and Nemotron.</p></div>
+        <div class="recorder" id="recorder">
+          <div class="recording-meta"><span id="record-state">Ready to record</span><span id="clock">00:00</span></div>
+          <div class="meter" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <button id="record" class="primary record-button"><span class="record-icon" aria-hidden="true"></span><span id="record-label">Start recording</span></button>
+          <p class="hint center" id="capture-hint">Microphone access on click · Up to 10 minutes</p>
+        </div>
+        <div class="divider"><span>or use an existing recording</span></div>
+        <label class="upload" for="file"><span aria-hidden="true">↥</span><strong>Choose an audio file</strong><small>WAV / M4A / MP3 / WebM / Ogg</small><input id="file" type="file" accept=".wav,.m4a,.mp3,.webm,.ogg,audio/*"></label>
+        <div class="audio-preview" id="audio-preview" hidden><div class="file-info"><strong id="file-name"></strong><button id="clear" class="text-button">Clear</button></div><audio id="playback" controls preload="metadata"></audio><a id="download-audio" class="text-link" download="recording.wav">Download recording</a></div>
+        <button id="transcribe" class="secondary full" disabled>Transcribe with MOSS <span aria-hidden="true">→</span></button>
+        <button id="cancel-job" class="text-button full" hidden>Cancel transcription</button>
+      </section>
+      <div class="results-column">
+        <section class="panel output-panel" aria-labelledby="output-heading">
+          <div class="section-title"><span class="section-number">02</span><h2 id="output-heading">Transcription</h2><button id="export" class="text-button push" disabled>Export JSON ↗</button></div>
+          <div class="status-line"><span class="status-pill" id="status" role="status" aria-live="polite">Waiting for audio</span><span id="model-name" class="hint">No model running</span></div>
+          <progress id="progress" max="1" hidden aria-label="Model progress"></progress>
+          <div class="metrics"><div><span>Audio duration</span><strong id="duration">—</strong></div><div><span>First text</span><strong id="latency">—</strong></div><div><span>Finalization</span><strong id="finish-time">—</strong></div></div>
+          <div class="result-block"><h3>Live transcript <span id="live-badge">Not started</span></h3><div id="live-text" class="transcript empty">Choose a live mode to see the transcript update as you speak.</div></div>
+          <div class="result-block"><h3>MOSS · full transcript <span id="moss-badge">Not submitted</span></h3><div id="moss-text" class="transcript empty">The full transcript and available speaker segments will appear here.</div><div id="segments" class="segments"></div></div>
+          <p class="hint" id="result-note">Partial text can change. A run is marked complete only after the final result arrives.</p>
+        </section>
+        <section class="panel quality-panel" aria-labelledby="quality-heading"><div class="section-title"><span class="section-number">03</span><h2 id="quality-heading">Check recognition quality</h2><span class="hint push">Optional</span></div><label for="reference">Reference transcript</label><textarea id="reference" rows="3" placeholder="Paste a verified transcript to compare word or character error rates for the live and MOSS results."></textarea><div id="quality" class="quality-results"><span class="hint">Add a reference to measure transcription errors. This is not model confidence.</span></div><p class="hint">For consultations, listen for medication names, doses, negation, and speaker attribution. Speaker labels are not identities.</p></section>
+        <details class="panel diagnostics"><summary>API diagnostics <span id="event-count">0 events</span></summary><pre id="events">Waiting for backend events…</pre></details>
+      </div>
+    </div>
+    <footer><span>Hablabla · Speech backend test console</span><span>Recordings stay in this page. Download before refreshing.</span></footer>
+  </main>
+</body></html>

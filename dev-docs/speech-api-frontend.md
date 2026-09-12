@@ -6,6 +6,14 @@ The HTTP routes are also available as an importable
 [OpenAPI 3.1 file](speech-api.openapi.yaml). OpenAPI cannot fully describe the
 binary WebSocket frames, so this document remains authoritative for streaming.
 
+For copyable API calls, start with the [English API usage guide](speech-api-usage.md).
+For deployment, read the [demo speech backend handoff](demo-speech-handoff.md).
+It records the current LAN console at `https://192.168.137.253:18767`, the local
+console at `http://127.0.0.1:18766`, and the separate same-Mac product-frontend
+setup. Console HTTP routes use `/api/...`; the `/v1/...` HTTP paths in this
+document require a configured speech gateway and server-side Bearer key.
+Do not substitute the console URL directly into the gateway OpenAPI definition.
+
 ## Interface summary
 
 | Method | Path | Called by | Request data | Success |
@@ -50,6 +58,10 @@ Response and ticket rules match Parakeet: `sessionId`, `websocketUrl`,
 Use the returned URL, send `start`, wait for `ready`, then reuse the PCM worklet
 and 8-byte packet header documented below. Do not send WebM/Opus chunks.
 Send `finish` after flushing captured PCM and wait for `isFinal: true`.
+The worker uses Nemotron 3.5 ASR Streaming Multilingual 0.6B with the full
+13,087-token vocabulary. `ready.model` is
+`nemotron-3.5-asr-streaming-multilingual-0.6b`; `ready.chunkMs` reports the actual
+loaded tier. The test console installs the recommended 2,240 ms export.
 Nemotron partial results are whole-text snapshots in `volatileText` (not deltas);
 only the final result moves to `confirmedText`. Replace text by revision.
 `audioEndMs` measures received audio, not word-level alignment.
@@ -64,7 +76,8 @@ depends on the model export. The decoder applies vocabulary bias during ASR,
 not a later find-and-replace. This does not guarantee medical accuracy; preserve
 the recording and require review of drug names, dosage, and clinical terms.
 
-`GET /v1/capabilities` exposes `nemotron.configured`, `hotwords: true`, and
+`GET /v1/capabilities` exposes the model ID, `chunkMs` when readable from
+compatible metadata, `nemotron.configured`, `hotwords: true`, and
 `maximumHotwords: 64`. Configured means a directory was supplied, not that a
 model has passed loading. Missing configuration returns HTTP 503
 `MODEL_NOT_CONFIGURED`; bad hotwords return HTTP 400 `INVALID_STREAM_CONFIG`.

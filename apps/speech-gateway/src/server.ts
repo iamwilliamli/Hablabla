@@ -332,7 +332,8 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
         maximumUploadBytes: config.maximumUploadBytes,
       },
       nemotron: {
-        model: "nemotron-multilingual", transport: "websocket",
+        model: "nemotron-3.5-asr-streaming-multilingual-0.6b", transport: "websocket",
+        chunkMs: config.nemotronChunkMs ?? null,
         configured: Boolean(config.nemotronModelDirectory), hotwords: true,
         maximumHotwords: 64,
         audio: { encoding: STREAM_ENCODING, sampleRateHz: STREAM_SAMPLE_RATE_HZ, channels: STREAM_CHANNELS },
@@ -464,8 +465,12 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
         "cache-control": "no-cache, no-transform",
         connection: "keep-alive",
       });
-      job.listeners.add(response);
       response.write(`data: ${JSON.stringify(publicJob(job))}\n\n`);
+      if (["completed", "failed", "cancelled"].includes(job.status)) {
+        response.end();
+        return;
+      }
+      job.listeners.add(response);
       request.once("close", () => job.listeners.delete(response));
       return;
     }

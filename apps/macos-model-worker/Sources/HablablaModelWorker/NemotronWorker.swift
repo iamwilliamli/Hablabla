@@ -4,9 +4,23 @@ import FluidAudio
 
 private struct NemotronReady: Encodable {
     let type = "ready"
-    let model = "nemotron-multilingual"
+    let model = "nemotron-3.5-asr-streaming-multilingual-0.6b"
     let sampleRateHz = 16000
+    let chunkMs: Int
     let hotwordCount: Int
+}
+
+private struct NemotronModelMetadata: Decodable {
+    let model: String
+    let vocab_size: Int
+    let chunk_mel_frames: Int
+    let sample_rate: Int
+}
+
+private struct NemotronLoadProgress: Encodable {
+    let type = "progress"
+    let progress = 0.01
+    let stage = "loading-nemotron-3.5-model"
 }
 
 private struct NemotronInputError: LocalizedError {
@@ -20,6 +34,13 @@ func runNemotron(arguments: Arguments, emitter: JSONLineEmitter) async throws {
         throw WorkerError.unsupportedStreamFormat
     }
     let directory = URL(fileURLWithPath: try arguments.require("model-directory"))
+    let metadata = try JSONDecoder().decode(NemotronModelMetadata.self,
+        from: Data(contentsOf: directory.appendingPathComponent("metadata.json")))
+    guard metadata.model == "nvidia/nemotron-3.5-asr-streaming-0.6b",
+          metadata.vocab_size == 13087, metadata.sample_rate == 16000 else {
+        throw NemotronInputError(message: "Use Nemotron 3.5 ASR with the full multilingual vocabulary; English-only and Latin-pruned assets are not accepted.")
+    }
+    try await emitter.write(NemotronLoadProgress())
     let words = try JSONDecoder().decode(
         [String].self, from: Data(try arguments.require("hotwords-json").utf8)
     )
@@ -55,8 +76,10 @@ func runNemotron(arguments: Arguments, emitter: JSONLineEmitter) async throws {
     let manager = StreamingNemotronMultilingualAsrManager()
     await manager.setCustomVocabulary(words.map { CustomVocabularyTerm(text: $0) })
     try await manager.loadModels(from: directory)
-    await manager.setLanguage(try arguments.require("language"))
-    try await emitter.write(NemotronReady(hotwordCount: words.count))
+    let language = try arguments.require("language")
+    let languageAliases = ["zh": "zh-CN", "ja": "ja-JP", "en": "en-US", "es": "es-ES", "fr": "fr-FR", "de": "de-DE"]
+    await manager.setLanguage(languageAliases[language] ?? language)
+    try await emitter.write(NemotronReady(chunkMs: metadata.chunk_mel_frames * 10, hotwordCount: words.count))
     var pending = Data()
     var totalSamples = 0
     var revision = 0
@@ -74,7 +97,9 @@ func runNemotron(arguments: Arguments, emitter: JSONLineEmitter) async throws {
         }
         pending.removeFirst(count * 2)
         totalSamples += count
-        let text = try await manager.process(samples: samples)
+        // FluidAudio delivers partial text separately; process(samples:) returns "".
+        _ = try await manager.process(samples: samples)
+        let text = await manager.getPartialTranscript()
         if text != lastText {
             revision += 1
             lastText = text
