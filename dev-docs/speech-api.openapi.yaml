@@ -3,7 +3,7 @@ info:
   title: Hablabla Speech API
   version: 1.0.0
   description: |
-    Public contract for Parakeet v3 live transcription and MOSS offline
+    Public contract for Parakeet v3 and Nemotron multilingual live transcription and MOSS offline
     transcription. HTTP calls use a partner-server bearer key. A browser uses
     only the one-time, origin-bound WebSocket URL returned by the session API.
 servers:
@@ -13,7 +13,42 @@ tags:
   - name: System
   - name: Parakeet v3
   - name: MOSS
+  - name: Nemotron multilingual
 paths:
+  /v1/nemotron/sessions:
+    post:
+      tags: [Nemotron multilingual]
+      summary: Create a streaming session with optional medical hotwords
+      description: Partner-server bearer authentication; ticket is single-use, origin-bound and expires in 60 seconds.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NemotronSessionRequest" }
+      responses:
+        "201":
+          description: Session created; open the returned URL and await ready before audio
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ParakeetSession" }
+        "400": { $ref: "#/components/responses/InvalidInput" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/OriginNotAllowed" }
+        "503": { description: MODEL_NOT_CONFIGURED; no Nemotron model directory configured }
+  /v1/nemotron/stream:
+    get:
+      tags: [Nemotron multilingual]
+      summary: Upgrade to Nemotron streaming WebSocket
+      description: Same PCM16 framing and start/finish commands as Parakeet. See speech-api-frontend.md. Partial snapshots are volatile until the final event. Hotwords come from session creation, not audio frames.
+      security: []
+      parameters:
+        - name: ticket
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "101": { description: Switching Protocols }
+        "403": { description: Invalid, expired, consumed, wrong-model or wrong-origin ticket }
   /healthz:
     get:
       tags: [System]
@@ -230,6 +265,15 @@ components:
       type: object
       required: [streaming, offline]
       properties:
+        nemotron:
+          type: object
+          properties:
+            model: { type: string, const: nemotron-multilingual }
+            configured: { type: boolean, description: Directory configured; not a readiness check }
+            transport: { type: string, const: websocket }
+            hotwords: { type: boolean, const: true }
+            maximumHotwords: { type: integer, const: 64 }
+            audio: { $ref: "#/components/schemas/AudioFormat" }
         streaming:
           type: object
           required: [model, transport, audio]
@@ -247,6 +291,20 @@ components:
               type: array
               items: { type: string }
             maximumUploadBytes: { type: integer }
+    NemotronSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [origin, language, audio]
+      properties:
+        origin: { type: string, format: uri }
+        language: { type: string, pattern: "^(auto|[a-z]{2}(-[A-Za-z]{2})?)$" }
+        audio: { $ref: "#/components/schemas/AudioFormat" }
+        hotwords:
+          type: array
+          maxItems: 64
+          description: Trimmed and deduplicated per session. Maximum 80 UTF-16 code units per nonblank term; prefer complete medical terms. Decoder ignores short terms (under 3 graphemes, or 2 for CJK).
+          items: { type: string, minLength: 1, maxLength: 80 }
+          example: [metformin, HbA1c, myocardial infarction]
     ParakeetSessionRequest:
       type: object
       additionalProperties: false

@@ -6,7 +6,7 @@ import MLX
 import MLXAudioCore
 import MLXAudioSTT
 
-private struct Arguments {
+struct Arguments {
     let command: String
     let values: [String: String]
 
@@ -34,7 +34,7 @@ private struct Arguments {
     }
 }
 
-private enum WorkerError: LocalizedError {
+enum WorkerError: LocalizedError {
     case usage
     case missingArgument(String)
     case unsupportedStreamFormat
@@ -45,11 +45,11 @@ private enum WorkerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .usage:
-            return "Use parakeet-stream or moss-offline with the documented arguments."
+            return "Use parakeet-stream, nemotron-stream or moss-offline with the documented arguments."
         case .missingArgument(let value):
             return "Missing --\(value)."
         case .unsupportedStreamFormat:
-            return "Parakeet streaming requires 16000 Hz pcm_s16le audio."
+            return "Streaming requires 16000 Hz pcm_s16le audio."
         case .oddPCMByteCount:
             return "The PCM stream ended between Int16 samples."
         case .emptyAudio:
@@ -60,7 +60,7 @@ private enum WorkerError: LocalizedError {
     }
 }
 
-private actor JSONLineEmitter {
+actor JSONLineEmitter {
     private let encoder = JSONEncoder()
 
     func write<T: Encodable>(_ value: T) throws {
@@ -91,7 +91,7 @@ private struct ReadyEvent: Encodable {
     let sampleRateHz = 16_000
 }
 
-private struct StreamTranscriptEvent: Encodable {
+struct StreamTranscriptEvent: Encodable {
     let type = "transcript"
     let revision: Int
     let confirmedText: String
@@ -330,6 +330,8 @@ private enum HablablaModelWorker {
             let arguments = try Arguments(Array(CommandLine.arguments.dropFirst()))
             let emitter = JSONLineEmitter()
             switch arguments.command {
+            case "nemotron-stream":
+                try await runNemotron(arguments: arguments, emitter: emitter)
             case "parakeet-stream":
                 try await runParakeet(arguments: arguments, emitter: emitter)
             case "moss-offline":

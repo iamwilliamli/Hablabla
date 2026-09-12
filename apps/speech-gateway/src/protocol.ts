@@ -1,6 +1,13 @@
 export const STREAM_SAMPLE_RATE_HZ = 16_000;
 export const STREAM_CHANNELS = 1;
 export const STREAM_ENCODING = "pcm_s16le";
+export function parseNemotronHotwords(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 64 || value.some(
+    (term) => typeof term !== "string" || term.trim().length === 0 || term.length > 80,
+  )) throw new Error("hotwords must be an array of at most 64 non-empty strings, each at most 80 characters");
+  return [...new Set(value.map((term: string) => term.trim()))];
+}
 export const STREAM_HEADER_BYTES = 8;
 export const MAXIMUM_STREAM_SAMPLES_PER_PACKET = STREAM_SAMPLE_RATE_HZ;
 

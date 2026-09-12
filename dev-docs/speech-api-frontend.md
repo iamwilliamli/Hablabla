@@ -14,6 +14,8 @@ binary WebSocket frames, so this document remains authoritative for streaming.
 | `GET` | `/v1/capabilities` | Partner server | bearer token | Supported models and audio limits |
 | `POST` | `/v1/parakeet/sessions` | Partner server | JSON stream configuration | `201` one-time WebSocket URL |
 | `WSS` | `/v1/parakeet/stream?ticket=...` | Browser | JSON commands plus framed PCM | Live transcript events |
+| `POST` | `/v1/nemotron/sessions` | Partner server | JSON stream configuration and optional `hotwords` | `201` one-time WebSocket URL |
+| `WSS` | `/v1/nemotron/stream?ticket=...` | Browser | Same framed PCM protocol | Live transcript events |
 | `POST` | `/v1/moss/transcriptions` | Partner server | Multipart complete audio file | `202` queued job |
 | `GET` | `/v1/moss/transcriptions/:jobId` | Partner server | bearer token | Job progress/result |
 | `GET` | `/v1/moss/transcriptions/:jobId/events` | Partner server | bearer token | SSE progress/result stream |
@@ -29,6 +31,55 @@ The backend accepts two intentionally different inputs:
 Do not send a browser `MediaStream` object. It exists only inside that browser.
 
 ## Frontend integration handoff
+
+### Nemotron multilingual streaming with medical hotwords
+
+The partner server calls `POST /v1/nemotron/sessions` with its bearer key:
+
+```json
+{
+  "origin": "https://partner.example.com",
+  "language": "en",
+  "audio": { "encoding": "pcm_s16le", "sampleRateHz": 16000, "channels": 1 },
+  "hotwords": ["metformin", "HbA1c", "myocardial infarction"]
+}
+```
+
+Response and ticket rules match Parakeet: `sessionId`, `websocketUrl`,
+`ticketExpiresAt`; one use, 60 seconds, bound to the exact browser Origin.
+Use the returned URL, send `start`, wait for `ready`, then reuse the PCM worklet
+and 8-byte packet header documented below. Do not send WebM/Opus chunks.
+Send `finish` after flushing captured PCM and wait for `isFinal: true`.
+Nemotron partial results are whole-text snapshots in `volatileText` (not deltas);
+only the final result moves to `confirmedText`. Replace text by revision.
+`audioEndMs` measures received audio, not word-level alignment.
+
+`hotwords` is optional; omitted or `[]` disables vocabulary biasing. Maximum
+64 terms, each nonblank and at most 80 UTF-16 code units. Whitespace is trimmed
+and exact duplicates removed. Use complete medical terms: the upstream decoder
+ignores terms shorter than three graphemes (two for CJK). Vocabulary is fixed
+for the session; create a new session to change it. `language` accepts `auto`
+or a two-letter language with optional region; actual language availability
+depends on the model export. The decoder applies vocabulary bias during ASR,
+not a later find-and-replace. This does not guarantee medical accuracy; preserve
+the recording and require review of drug names, dosage, and clinical terms.
+
+`GET /v1/capabilities` exposes `nemotron.configured`, `hotwords: true`, and
+`maximumHotwords: 64`. Configured means a directory was supplied, not that a
+model has passed loading. Missing configuration returns HTTP 503
+`MODEL_NOT_CONFIGURED`; bad hotwords return HTTP 400 `INVALID_STREAM_CONFIG`.
+Invalid/incompatible assets fail the WebSocket before `ready`; handle `error`
+and close explicitly. `ready.hotwordCount` is the submitted deduplicated count,
+not a count of words recognized or guaranteed effective.
+
+Backend setup: set `HABLABLA_NEMOTRON_MODEL_DIR` to a FluidAudio-compatible
+**multilingual** export containing `metadata.json`, `tokenizer.json`, encoder
+assets and a loadable `decoder_joint` or `decoder` + `joint` logits path.
+This adapter conservatively requires one of these logits paths for hotwords;
+argmax-only and B3-only exports are rejected when hotwords are requested.
+The separate English-only Nemotron exports are not interchangeable.
+Rebuild the macOS worker after updating dependencies. Cold model loading may
+take time; do not start microphone transmission before `ready`.
 
 The speech gateway contract is ready, but `apps/web` does not currently expose
 the same-origin proxy routes needed to keep the partner bearer key out of the

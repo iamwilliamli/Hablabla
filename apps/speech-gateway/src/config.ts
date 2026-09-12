@@ -9,6 +9,7 @@ export type GatewayConfig = {
   workerExecutable: string;
   ffmpegExecutable: string;
   parakeetModelDirectory?: string;
+  nemotronModelDirectory?: string;
   mossModelDirectory?: string;
   maximumUploadBytes: number;
   ticketLifetimeMs: number;
@@ -45,6 +46,7 @@ export function loadConfig(): GatewayConfig {
     workerExecutable: required("HABLABLA_SPEECH_WORKER"),
     ffmpegExecutable: process.env.HABLABLA_FFMPEG ?? "ffmpeg",
     parakeetModelDirectory: process.env.HABLABLA_PARAKEET_MODEL_DIR?.trim() || undefined,
+    nemotronModelDirectory: process.env.HABLABLA_NEMOTRON_MODEL_DIR?.trim() || undefined,
     mossModelDirectory: process.env.HABLABLA_MOSS_MODEL_DIR?.trim() || undefined,
     maximumUploadBytes: Number(process.env.HABLABLA_SPEECH_MAX_UPLOAD_BYTES ?? 200 * 1024 * 1024),
     ticketLifetimeMs: 60_000,

@@ -14,6 +14,7 @@ import {
 import {
   acceptedOfflineAudioTypes,
   decodeStreamPacket,
+  parseNemotronHotwords,
   jsonLineObjects,
   STREAM_CHANNELS,
   STREAM_ENCODING,
@@ -21,6 +22,8 @@ import {
 } from "./protocol.js";
 
 type Ticket = {
+  model: "parakeet" | "nemotron";
+  hotwords: string[];
   sessionId: string;
   origin: string;
   language: string;
@@ -328,16 +331,29 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
         acceptedContentTypes: [...acceptedOfflineAudioTypes.keys()],
         maximumUploadBytes: config.maximumUploadBytes,
       },
+      nemotron: {
+        model: "nemotron-multilingual", transport: "websocket",
+        configured: Boolean(config.nemotronModelDirectory), hotwords: true,
+        maximumHotwords: 64,
+        audio: { encoding: STREAM_ENCODING, sampleRateHz: STREAM_SAMPLE_RATE_HZ, channels: STREAM_CHANNELS },
+      },
     });
     return;
   }
 
-  if (request.method === "POST" && url.pathname === "/v1/parakeet/sessions") {
+  if (request.method === "POST" && ["/v1/parakeet/sessions", "/v1/nemotron/sessions"].includes(url.pathname)) {
+    const model = url.pathname.includes("/nemotron/") ? "nemotron" : "parakeet";
+    if (model === "nemotron" && !config.nemotronModelDirectory) {
+      sendError(response, 503, requestId, "MODEL_NOT_CONFIGURED", "Nemotron multilingual model assets are not configured.");
+      return;
+    }
     let body: Record<string, unknown>;
+    let hotwords: string[] = [];
     let origin = "";
     try {
       body = JSON.parse((await readBody(request, 32_768)).toString("utf8")) as Record<string, unknown>;
       origin = typeof body.origin === "string" ? new URL(body.origin).origin : "";
+      if (model === "nemotron") hotwords = parseNemotronHotwords(body.hotwords);
     } catch {
       sendError(response, 400, requestId, "INVALID_STREAM_CONFIG", "Send a valid JSON stream configuration.");
       return;
@@ -348,7 +364,7 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
       sendError(response, 403, requestId, "ORIGIN_NOT_ALLOWED", "This web origin is not allowed.");
       return;
     }
-    if (!/^[a-z]{2}(?:-[A-Za-z]{2})?$/.test(language)
+    if ((!(model === "nemotron" && language === "auto") && !/^[a-z]{2}(?:-[A-Za-z]{2})?$/.test(language))
       || audio?.encoding !== STREAM_ENCODING
       || audio?.sampleRateHz !== STREAM_SAMPLE_RATE_HZ
       || audio?.channels !== STREAM_CHANNELS) {
@@ -358,10 +374,10 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
     const ticket = opaqueID("ticket");
     const sessionId = opaqueID("st");
     const expiresAt = Date.now() + config.ticketLifetimeMs;
-    tickets.set(ticket, { sessionId, origin, language, expiresAt });
+    tickets.set(ticket, { sessionId, origin, language, expiresAt, model, hotwords });
     sendJSON(response, 201, {
       sessionId,
-      websocketUrl: `${websocketBase(config.publicBaseUrl)}/v1/parakeet/stream?ticket=${encodeURIComponent(ticket)}`,
+      websocketUrl: `${websocketBase(config.publicBaseUrl)}/v1/${model}/stream?ticket=${encodeURIComponent(ticket)}`,
       ticketExpiresAt: new Date(expiresAt).toISOString(),
     });
     return;
@@ -485,7 +501,7 @@ server.on("upgrade", (request, socket, head) => {
   const ticketID = url.searchParams.get("ticket");
   const ticket = ticketID ? tickets.get(ticketID) : undefined;
   const origin = requestOrigin(request);
-  if (url.pathname !== "/v1/parakeet/stream" || !ticket || !origin
+  if (!ticket || url.pathname !== `/v1/${ticket.model}/stream` || !origin
     || ticket.expiresAt < Date.now() || origin !== ticket.origin) {
     socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
     socket.destroy();
@@ -499,14 +515,16 @@ server.on("upgrade", (request, socket, head) => {
 
 webSocketServer.on("connection", (webSocket: WebSocket, _request: IncomingMessage, ticket: Ticket) => {
   const workerArguments = [
-    "parakeet-stream",
+    `${ticket.model}-stream`,
     "--language", ticket.language,
     "--sample-rate", String(STREAM_SAMPLE_RATE_HZ),
     "--encoding", STREAM_ENCODING,
   ];
-  if (config.parakeetModelDirectory) {
-    workerArguments.push("--model-directory", config.parakeetModelDirectory);
+  const modelDirectory = ticket.model === "nemotron" ? config.nemotronModelDirectory : config.parakeetModelDirectory;
+  if (modelDirectory) {
+    workerArguments.push("--model-directory", modelDirectory);
   }
+  if (ticket.model === "nemotron") workerArguments.push("--hotwords-json", JSON.stringify(ticket.hotwords));
   const child = spawn(config.workerExecutable, workerArguments, { stdio: ["pipe", "pipe", "pipe"] });
   const stdoutState = { pending: "" };
   let expectedSequence = 0;
@@ -526,23 +544,23 @@ webSocketServer.on("connection", (webSocket: WebSocket, _request: IncomingMessag
   };
 
   child.stdin.on("error", () => {
-    if (!finished) fail("WORKER_INPUT_FAILURE", "The Parakeet worker stopped accepting audio.", true);
+    if (!finished) fail("WORKER_INPUT_FAILURE", "The speech worker stopped accepting audio.", true);
   });
 
   child.stdout.on("data", (chunk: Buffer) => {
     try {
       for (const event of jsonLineObjects(stdoutState, chunk)) send(event);
     } catch {
-      fail("INVALID_WORKER_OUTPUT", "The Parakeet worker returned invalid JSON.");
+      fail("INVALID_WORKER_OUTPUT", "The speech worker returned invalid JSON.");
     }
   });
   let stderr = "";
   child.stderr.on("data", (chunk: Buffer) => {
     stderr = (stderr + chunk.toString("utf8")).slice(-8_000);
   });
-  child.once("error", () => fail("WORKER_UNAVAILABLE", "The Parakeet worker could not start.", true));
+  child.once("error", () => fail("WORKER_UNAVAILABLE", "The speech worker could not start.", true));
   child.once("exit", (code) => {
-    if (!finished && code !== 0) fail("WORKER_FAILURE", stderr.trim() || "The Parakeet worker stopped.", true);
+    if (code !== 0) fail("WORKER_FAILURE", stderr.trim() || "The speech worker stopped.", true);
     else if (webSocket.readyState === WebSocket.OPEN) webSocket.close(1000, "finished");
   });
 
@@ -576,7 +594,7 @@ webSocketServer.on("connection", (webSocket: WebSocket, _request: IncomingMessag
     });
   });
   webSocket.once("close", () => {
-    if (!finished) child.kill("SIGTERM");
+    child.kill("SIGTERM");
   });
 });
 

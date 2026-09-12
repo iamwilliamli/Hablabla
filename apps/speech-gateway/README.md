@@ -73,3 +73,12 @@ For the demo, do not run MOSS while latency-sensitive Parakeet sessions are in
 progress unless the Mac has been profiled with both model allocations. The
 current queue serializes MOSS jobs but does not yet pause them for an incoming
 Parakeet session.
+# Nemotron hotwords
+
+`POST /v1/nemotron/sessions` and its returned WebSocket URL support multilingual
+Nemotron with per-session `hotwords: string[]`. Audio framing is identical to
+Parakeet. Configure `HABLABLA_NEMOTRON_MODEL_DIR` and rebuild the native worker;
+see [the frontend contract](../../dev-docs/speech-api-frontend.md#nemotron-multilingual-streaming-with-medical-hotwords)
+for payloads, asset requirements, limits, and error behavior. The model directory
+must be a FluidAudio multilingual export, not the English-only model. Vocabulary
+bias needs logits-capable decoder assets and does not guarantee clinical accuracy.

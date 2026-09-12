@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bearerToken, constantTimeIncludes } from "./config.js";
-import { decodeStreamPacket, jsonLineObjects } from "./protocol.js";
+import { decodeStreamPacket, jsonLineObjects, parseNemotronHotwords } from "./protocol.js";
+
+test("Nemotron hotwords are optional, trimmed and deduplicated", () => {
+  assert.deepEqual(parseNemotronHotwords(undefined), []);
+  assert.deepEqual(parseNemotronHotwords([" metformin ", "HbA1c", "metformin"]), ["metformin", "HbA1c"]);
+});
+
+test("Nemotron rejects malformed or oversized hotword lists", () => {
+  for (const value of [null, "metformin", [42], [" "], ["a".repeat(81)], Array(65).fill("metformin")]) {
+    assert.throws(() => parseNemotronHotwords(value), /hotwords/);
+  }
+});
 
 test("decodes a framed PCM packet", () => {
   const data = Buffer.alloc(12);

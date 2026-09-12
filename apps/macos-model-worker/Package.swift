@@ -10,7 +10,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/FluidInference/FluidAudio.git",
-            revision: "df1417ce86225af50150b11eb04fa01c0aba9148"
+            revision: "c7562faf29f07b7634d2b99d41679c6ff430f3b3"
         ),
         .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.30.6"),
         .package(path: "Vendor/MLXAudioMOSS"),
