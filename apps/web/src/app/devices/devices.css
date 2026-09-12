@@ -84,4 +84,9 @@
 .dv-modifiers input { width: 20px; min-height: 20px; accent-color: #245545; }
 .dv-control-status { border-left: 3px solid #557753; padding: 2px 16px 12px; margin: 20px 0; }
 .dv-control-status p { margin: 10px 0; }
+.dv-control-form textarea { background: #fffef9; color: #213d35; border: 1px solid #aebdac; border-radius: 8px; padding: 12px; width: 100%; min-width: 0; resize: vertical; font: inherit; }
+.dv-ai-disclosure { padding: 14px 16px; background: #edf1e4; border-radius: 9px; max-width: 820px; }
+.dv-ai-proposal { border: 1px solid #aebdac; border-radius: 12px; padding: 20px; max-width: 820px; }
+.dv-ai-proposal h3 { font-size: 14px; margin-bottom: 8px; }
+.dv-ai-action { white-space: pre-wrap; overflow-wrap: anywhere; font-family: ui-monospace, monospace; }
 @media(max-width:700px) { .dv-control { padding: 20px; } .dv-control-heading .dv-pill { display: none; } }

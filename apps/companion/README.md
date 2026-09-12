@@ -10,6 +10,17 @@ The native app now pairs directly with the browser on this Mac. Start `npm run d
 
 The Terminal document-opening flow below remains separate. No live meeting model is loaded by `/devices`.
 
+### OpenAI controls on the dashboard
+
+With `OPENAI_API_KEY` configured on the web server, **Ask OpenAI** can turn one
+instruction into a proposed command for one shared window. The default model is
+`gpt-6-astra`; override it with `OPENAI_COMPUTER_MODEL`. Review the proposal, click
+**Request Mac approval for this action**, then choose **Approve Once** in the
+companion. This uses OpenAI custom function tools and the existing native
+controls. It is not an autonomous screenshot-driven loop: only your instruction
+and selected app/window name are sent, and screenshots stay local. See
+[the OpenAI contract and limits](LOCAL_DASHBOARD.md#optional-openai-action-proposals).
+
 ## Run the Terminal document demo
 
 Requirements: macOS, Node.js 22+, and Xcode Command Line Tools (`xcrun swiftc`). Run the commands below from the repository root. No model key or cloud account is needed.

@@ -7,6 +7,21 @@ The home page is Hablabla's doctor–patient conversation workspace, built with 
 ## Local device dashboard
 
 Open **http://127.0.0.1:3100/devices** while this server runs. Pair it with the installed Hablabla Companion through the app’s **Local Dashboard…** window. Request a snapshot, choose/capture its source in the Mac app, then approve **Share with Dashboard**. Images remain on this Mac and expire after a minute. This route bypasses the meeting agent; it does not start a local or remote model. See the [local protocol and walkthrough](../companion/LOCAL_DASHBOARD.md). Keep the exact loopback bind/host; this is not an internet deployment.
+### Optional computer-use proposals
+
+On `/devices`, pair the companion, request a window list, and share a demo window
+from the Mac. In **Ask OpenAI**, select that window and enter one instruction.
+Set `OPENAI_API_KEY` and optionally `OPENAI_COMPUTER_MODEL` in root `.env`, then
+restart the server. Review the returned proposal, click **Request Mac approval
+for this action**, and approve once in the companion. The browser reports the
+native outcome through the existing device broker.
+
+This integrates the dashboard, `/api/devices`, the OpenAI Responses adapter, and
+the companion's existing control protocol. It proposes one custom-function action;
+it does not use the built-in computer tool, observe screenshots, or run an
+autonomous loop. Screenshots remain local. See the
+[contract and limits](../companion/LOCAL_DASHBOARD.md#optional-openai-action-proposals).
+
 ## Run locally
 
 Use Node.js 22+ and run from the repository root:

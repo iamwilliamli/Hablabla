@@ -2,6 +2,13 @@
 
 Last updated: September 12, 2026
 
+The separate companion `/devices` dashboard now has user-authorized OpenAI
+action proposals. It sends one instruction and one selected app/window name to
+the Responses API, validates one custom-function command, and retains browser
+review plus native Approve Once. Screenshots remain local; meeting AI is
+unchanged. This is not a screenshot-driven agent loop. See
+[the companion OpenAI contract](apps/companion/LOCAL_DASHBOARD.md#optional-openai-action-proposals).
+
 ### Integration update from remote commit `6efbb38`
 
 The meeting workspace, WebGPU agent/worker registration, and meeting-ID approval

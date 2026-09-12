@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ControlPanel } from "./control-panel";
+import { OpenAIControlPanel } from "./openai-panel";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { deviceStateSchema, type DeviceState } from "@/lib/devices-protocol";
@@ -158,6 +159,7 @@ export function DeviceDashboard() {
         </section>
       </div>
       <ControlPanel state={state} busy={busy} now={now} act={act} />
+      <OpenAIControlPanel state={state} ready={ready} busy={busy} now={now} act={act} />
       <p className="dv-bottom" role="status">{notice || "Pairing lasts for this session. Closing the companion connection window stops sharing."}</p>
     </main>
   </div>;

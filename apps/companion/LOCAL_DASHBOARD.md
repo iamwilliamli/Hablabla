@@ -74,6 +74,60 @@ snapshot still requires the existing explicit capture/share flow.
 
 ## Contract and ownership
 
+### Optional OpenAI action proposals
+
+The **Ask OpenAI** panel uses the server's `OPENAI_API_KEY` and
+`OPENAI_COMPUTER_MODEL` (default `gpt-6-astra`). Select one shared window and
+describe one action. **Send to OpenAI** sends only that instruction and the
+selected window's app, title and minimized state to OpenAI's Responses API.
+No screenshots, other window titles, device/session tokens, or meeting data are
+included. Native sharing delivers its catalog locally first; forwarding
+the selected title to OpenAI is a separate, disclosed browser action.
+
+The model uses the documented **custom UI function-tool** integration, named
+`request_control`; it does not use the built-in `computer` tool or execute code.
+Its response is validated against the existing bounded control schema and shown
+as a proposal. **Request Mac approval for this action** then uses the unchanged
+v2 control route; the Mac still requires **Approve Once** before execution.
+No model response automatically queues or executes input. Denied, dispatched,
+and unknown outcomes retain the same meanings as manual controls.
+
+This is one-step instruction-to-control assistance, **not a screen-observing
+agent loop**. Visual button targeting and task-result verification are unavailable.
+Use explicit geometric coordinates for pointer actions. For multi-step work,
+inspect the actual result and send the next instruction yourself. Screenshots
+remain local; local meeting-model verification remains paused.
+
+The server sets `store:false`, allows one function proposal per call, times out
+after 45 seconds, caps output at 1,600 tokens/64 KiB and allows 30 requests per
+hour per server process. `store:false` is a Responses setting, not a claim of
+zero provider retention. Proposals expire within 90 seconds or with the window
+catalog. Cancellation, disconnect, permission loss, manual commands and stale
+windows discard late replies. Request IDs prevent duplicate paid calls; failures
+are not retried automatically. Prompts are not persisted or logged; a proposal
+exists in session memory until expiry/discard. The page clears draft/proposal
+text when hidden. Restart invalidates pairings and resets this development budget.
+
+Additional browser JSON operations on `/api/devices`:
+
+| Operation | Fields | Result |
+| --- | --- | --- |
+| `ai_status` | none | `{configured, model}` without the API key |
+| `ai_plan` | `planId`, `deviceId`, `catalogId`, `windowId`, `instruction` (1–2,000 characters) | `{planId, deviceId, catalogId, windowId, expiresAt, model, message, action: ControlAction \| null}` |
+| `ai_cancel` | none | Discards a proposal or aborts planning; does not cancel already submitted native input |
+
+Browser bodies are bounded to 12,000 bytes (native limits unchanged). AI requests
+use the existing loopback Host, same-origin and session-cookie checks. They
+cannot supply their own window metadata or screenshots. Implementation lives in
+`apps/web/src/lib/server/openai-computer.ts`, `lib/computer-use.ts`,
+`components/devices/openai-panel.tsx`, and the existing `local-devices.ts` broker.
+No native rebuild is required.
+
+Official reference: [OpenAI computer use](https://developers.openai.com/api/docs/guides/tools-computer-use)
+and [function calling](https://developers.openai.com/api/docs/guides/function-calling).
+
+### Local transport ownership
+
 - Browser: `apps/web/src/app/devices/` and `components/devices/dashboard.tsx`.
 - Broker: `apps/web/src/app/api/devices/route.ts`, `lib/server/local-devices.ts`.
 - TypeScript schemas: `apps/web/src/lib/devices-protocol.ts`.
@@ -157,7 +211,7 @@ share a browser session; this is not per-tab authentication.
 Session lifetime is two hours. A five-second sweep frees expired state even when
 requests stop. Limits: 16 browser sessions, one device and one image per session,
 500 admitted request IDs per session, 30 pairing attempts per minute globally,
-2 KiB control bodies and 2,810,000-byte authenticated native bodies. Request IDs
+12,000-byte browser bodies and 2,810,000-byte authenticated native bodies. Request IDs
 remain admitted for the session: replay cannot request a new capture. Identical
 terminal replies can be acknowledged while their result exists; changed, late,
 cross-device, cleared, or expired results are rejected. Restart invalidates every

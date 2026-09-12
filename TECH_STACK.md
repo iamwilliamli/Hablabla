@@ -2,6 +2,30 @@
 
 Last updated: September 12, 2026
 
+### Companion OpenAI integration — September 12, 2026
+
+The user authorized OpenAI API computer controls. `/devices` now has an optional
+**Ask OpenAI** panel using `OPENAI_API_KEY` and `OPENAI_COMPUTER_MODEL` (default
+`gpt-6-astra`) on the server. It sends the instruction and one selected app/window
+name, then displays a single bounded custom-function proposal. Browser review
+and native **Approve Once** remain required. The native v2 protocol is unchanged.
+
+This is one-step instruction-to-control assistance using the Responses API and
+custom UI tools, not the built-in `computer` tool or a screenshot-driven agent
+loop. Screen images and meeting data remain local. No multi-user sharing or
+production relay was added. See [the contract, budgets and limits](apps/companion/LOCAL_DASHBOARD.md#optional-openai-action-proposals).
+
+Verification: nine new provider/broker tests and all existing repository tests
+passed, as did `npm run typecheck` and the web production build in an isolated
+source copy (the existing CopilotKit/Google Vertex dependency warning remains).
+A live Astra API call returned the exact
+requested test text. The complete browser → OpenAI proposal → native approval
+→ TextEdit flow then typed **Hablabla OpenAI test** into a new empty document;
+the dashboard reported `dispatched`, and the text was independently observed.
+The installed helper required no rebuild or permission changes. Live model
+visual targeting, autonomous multi-step completion, and provider failure paths
+remain unverified; malformed/provider-error/cancellation paths use test doubles.
+
 For the full team implementation handbook, contracts, and named ownership, see
 [TEAM_ARCHITECTURE.md](TEAM_ARCHITECTURE.md). William owns transcription and
 speaker processing, Renzo owns backend data and analysis management, Ahmad owns
@@ -60,6 +84,7 @@ it does not require browser WebGPU or a hosted pyannote service.
 | Device dashboard — same-Mac snapshots and approved controls implemented | `apps/web/src/app/devices/`, `apps/web/src/components/devices/`, `apps/web/src/lib/devices-protocol.ts`, `apps/web/src/lib/server/local-devices.ts`, `apps/web/src/app/api/devices/` | Browser pairing, explicitly approved native snapshots, selected window catalogs, and separately approved input. Local protocol v2; preserve the meeting routes and provider bypass. |
 | Pairing and communication — future backend task | Proposed `apps/relay/` | Backend owner builds authenticated device registry, pairing, command delivery, results, and stream signaling. Do not assume this service exists yet. |
 | Shared device protocol — joint interface review | Proposed `packages/device-protocol/`; initial design in section 21 | Agree on schemas before either side implements them. One owner lands shared contract changes; consumers update together. |
+| Research agent — implemented | `packages/agent-core/src/research/`, `apps/web/src/lib/server/research-{http,config}.ts`, `apps/web/src/app/api/research/`, `apps/web/src/components/research-panel.{tsx,css}`, `apps/web/src/lib/research-client.ts`, `apps/web/scripts/research-smoke.ts`, `dev-docs/research-agent.md`; the Research tab entry in `page.tsx` and the `MTG-consult` sample in `meetings.ts` | Approval-gated Exa research with server-held plans. Frontend owners integrate via the documented contract; do not expose it as a model-callable tool or reuse `/api/search` for it. |
 | Shared root configuration | `package.json`, `package-lock.json`, `AGENTS.md`, `TECH_STACK.md`, `apps/web/src/app/layout.tsx`, `apps/web/src/components/providers.tsx`, `apps/web/next.config.ts` | Coordinate edits. The current provider registers a browser-local agent; isolate `/devices` if it needs different agent/auth providers. Root scripts now include the companion workspace alongside web/channel and shared packages. |
 
 The proposed paths reserve boundaries; they are not a report of existing files. If the companion owner already has a different directory or protocol, record that existing choice here before connecting the components. Do not move their work to match a proposed path without an explicit assignment.
@@ -84,7 +109,6 @@ The user explicitly assigned companion implementation after the initial handoff.
 - Final local-capture verification: 113 repository tests/typechecks and three bundle tests passed. Real window (2560 × 1513) and display (2560 × 1665) images were visually verified on macOS 26, plus clear and picker cancellation. The old enabled TCC entry was refreshed with user approval; Screen Recording now reports Granted in the installed build. macOS 14–15 capture, forced timeouts, in-flight cancellation races, and certificate-based permission persistence remain unverified.
 - Same-Mac dashboard integration is now implemented and verified; see section 20 and [LOCAL_DASHBOARD.md](apps/companion/LOCAL_DASHBOARD.md). It has local session pairing, native preview/share approval, one-minute image expiry and disconnect controls. Streaming, keyboard/mouse control, window management, voice, server-side AI and public relay authentication/deployment remain unimplemented. Local meeting-AI verification remains paused.
 
-| Research agent — implemented | `packages/agent-core/src/research/`, `apps/web/src/lib/server/research-{http,config}.ts`, `apps/web/src/app/api/research/`, `apps/web/src/components/research-panel.{tsx,css}`, `apps/web/src/lib/research-client.ts`, `apps/web/scripts/research-smoke.ts`, `dev-docs/research-agent.md`; the Research tab entry in `page.tsx` and the `MTG-consult` sample in `meetings.ts` | Approval-gated Exa research with server-held plans. Frontend owners integrate via the documented contract; do not expose it as a model-callable tool or reuse `/api/search` for it. |
 
 ### Speech/backend merge accompanying local capture
 
@@ -100,6 +124,18 @@ final capture build also passed three native bundle tests.
 ### Ownership correction and OpenAI backend status — September 12, 2026
 
 William does not own the frontend. Do not modify frontend code for his tasks unless he explicitly changes this boundary. Frontend changes for the Local / OpenAI switch were withdrawn; the meeting UI remains local-only. The server-side `/api/meeting-agent` prototype and tests are retained for backend work and remain unconnected to the UI. Direct calls to this endpoint use OpenAI when a server API key is configured; the local-only descriptions below describe the existing meeting UI, not this optional endpoint. Live OpenAI requests remain unverified. The frontend owner has now connected the general speech gateway through server-only `/api/speech/*` proxy routes for the clinician transcription workflow; this does not connect the OpenAI prototype.
+
+### Research agent (Exa) backend — September 12, 2026
+
+An approval-gated research backend now exists for the section 24 evidence-review step. It is backend-only; no meeting page, style, provider wiring, speech service, or companion file changed. Contract and handoff: [dev-docs/research-agent.md](dev-docs/research-agent.md).
+
+- Route `/api/research` (loopback Host, same-origin JSON POST, HttpOnly session cookie) with operations `prepare`, `approve`, `decline`, `cancel`, and status reads. It is a separate authorization boundary from the inherited `/api/search` proxy, which is unchanged.
+- `prepare` returns the exact outbound queries, budget, provider disclosures, heuristic privacy flags, and a `planHash`. Nothing is sent externally until `approve` echoes that hash from the same session, once, before the 10-minute expiry. Changed queries require a new plan.
+- Execution: bounded Exa searches (default 3 queries × 5 results, 8 sources, 45 s deadline, rolling 60-searches/hour budget), canonical-URL and title de-duplication, term-overlap relevance, heuristic source typing (guideline / systematic review / trial / observational / preprint / commentary), honest access labels (abstract, highlights-only, none), unknown dates left null, and prompt-injection warnings on page text.
+- Synthesis is off unless `RESEARCH_SYNTHESIS_PROVIDER=openai` is set; the plan discloses it. Every synthesized finding must cite a verbatim passage span that shares content with the claim; unverifiable findings are dropped and counted. Without synthesis the result is a labelled `sources_only` brief. A bounded search is never described as a systematic review.
+- Verified: 49 new automated tests with fake providers (agent-core now 80 tests, web 69), repo typecheck, and the web production build. Live Exa retrieval and one live OpenAI synthesis run completed on a generic knee-replacement question; live HTTP guards were exercised with curl. Exa rate-limit/credit paths and in-flight Exa request abort remain unverified (the SDK has no `AbortSignal`; late responses are discarded).
+- **Transcript scan and Research tab (added after the frontend owner lifted the backend-only scope):** `detect` sends the transcript (≤ 16 000 characters) to a small OpenAI model (`RESEARCH_DETECT_MODEL`, default `gpt-5.4-mini`) only when the user clicks **Scan transcript with OpenAI**; topic evidence is verified verbatim against the transcript and suggested questions are privacy-flagged. The meeting workspace now has a **Research** tab (`apps/web/src/components/research-panel.tsx`) implementing scan → question → plan approval → brief, plus a fictional `MTG-consult` sample meeting. Verified live on the fictional consultation (detected, high) and the launch meeting (not detected). Test totals after merging the upstream clinical transcription workflow (`ff5bae2`): agent-core 88, web 87, all workspaces passing. One live run hit the whole-run deadline on a slow Exa response; queries now also carry a 20 s per-query bound so a slow query fails alone.
+- Not done: user authentication, clinical validation, scripted browser click-through of the tab. Results are reference material for the clinician.
 
 ## 1. Meeting-workspace summary
 
@@ -125,18 +161,6 @@ We use:
 - **WebGPU in the browser** for the core LLM.
 - **A local macOS backend** for serving the app,
   validating approval, accessing local OS capabilities, protecting optional
-### Research agent (Exa) backend — September 12, 2026
-
-An approval-gated research backend now exists for the section 24 evidence-review step. It is backend-only; no meeting page, style, provider wiring, speech service, or companion file changed. Contract and handoff: [dev-docs/research-agent.md](dev-docs/research-agent.md).
-
-- Route `/api/research` (loopback Host, same-origin JSON POST, HttpOnly session cookie) with operations `prepare`, `approve`, `decline`, `cancel`, and status reads. It is a separate authorization boundary from the inherited `/api/search` proxy, which is unchanged.
-- `prepare` returns the exact outbound queries, budget, provider disclosures, heuristic privacy flags, and a `planHash`. Nothing is sent externally until `approve` echoes that hash from the same session, once, before the 10-minute expiry. Changed queries require a new plan.
-- Execution: bounded Exa searches (default 3 queries × 5 results, 8 sources, 45 s deadline, rolling 60-searches/hour budget), canonical-URL and title de-duplication, term-overlap relevance, heuristic source typing (guideline / systematic review / trial / observational / preprint / commentary), honest access labels (abstract, highlights-only, none), unknown dates left null, and prompt-injection warnings on page text.
-- Synthesis is off unless `RESEARCH_SYNTHESIS_PROVIDER=openai` is set; the plan discloses it. Every synthesized finding must cite a verbatim passage span that shares content with the claim; unverifiable findings are dropped and counted. Without synthesis the result is a labelled `sources_only` brief. A bounded search is never described as a systematic review.
-- Verified: 49 new automated tests with fake providers (agent-core now 80 tests, web 69), repo typecheck, and the web production build. Live Exa retrieval and one live OpenAI synthesis run completed on a generic knee-replacement question; live HTTP guards were exercised with curl. Exa rate-limit/credit paths and in-flight Exa request abort remain unverified (the SDK has no `AbortSignal`; late responses are discarded).
-- **Transcript scan and Research tab (added after the frontend owner lifted the backend-only scope):** `detect` sends the transcript (≤ 16 000 characters) to a small OpenAI model (`RESEARCH_DETECT_MODEL`, default `gpt-5.4-mini`) only when the user clicks **Scan transcript with OpenAI**; topic evidence is verified verbatim against the transcript and suggested questions are privacy-flagged. The meeting workspace now has a **Research** tab (`apps/web/src/components/research-panel.tsx`) implementing scan → question → plan approval → brief, plus a fictional `MTG-consult` sample meeting. Verified live on the fictional consultation (detected, high) and the launch meeting (not detected). Test totals after merging the upstream clinical transcription workflow (`ff5bae2`): agent-core 88, web 87, all workspaces passing. One live run hit the whole-run deadline on a slow Exa response; queries now also carry a 20 s per-query bound so a slow query fails alone.
-- Not done: user authentication, clinical validation, scripted browser click-through of the tab. Results are reference material for the clinician.
-
   integration credentials, and writing approved tasks.
 - **Ambiguous AI**, when configured, for persistent tasks that survive refresh.
 
@@ -509,6 +533,11 @@ Do not commit `.env`. The root `.env.example` contains placeholder configuration
 `LOCAL_SPEECH_BASE_URL=http://127.0.0.1:8765` is a proposed future setting for
 the speech bridge; no current code consumes it.
 
+The research agent reads `EXA_API_KEY` and optional `RESEARCH_*` settings
+(`RESEARCH_SYNTHESIS_PROVIDER=openai` enables disclosed OpenAI synthesis; budget
+and deadline variables are listed in [dev-docs/research-agent.md](dev-docs/research-agent.md#4-configuration-server-env-never-in-the-browser)).
+Keys stay server-side; the browser only receives plans and briefs.
+
 ## 13. Current meeting-workspace code locations
 
 | Area | Location |
@@ -533,11 +562,6 @@ the speech bridge; no current code consumes it.
 | Reference-only generated UI | `apps/web/src/components/generative-ui.tsx` |
 | Reference-only approval UI | `apps/web/src/components/workplace-followups.tsx` |
 | Approval endpoint | `apps/web/src/app/api/followups/route.ts` |
-The research agent reads `EXA_API_KEY` and optional `RESEARCH_*` settings
-(`RESEARCH_SYNTHESIS_PROVIDER=openai` enables disclosed OpenAI synthesis; budget
-and deadline variables are listed in [dev-docs/research-agent.md](dev-docs/research-agent.md#4-configuration-server-env-never-in-the-browser)).
-Keys stay server-side; the browser only receives plans and briefs.
-
 | Approval/idempotency | `apps/web/src/lib/server/followups.ts` |
 | Ambiguous adapter | `apps/web/src/lib/server/workplace.ts` |
 
@@ -876,6 +900,11 @@ the frontend owner implements the web connection. Use the
 [speech frontend contract](dev-docs/speech-api-frontend.md) for transcription
 integration; medical reports, research, and translation remain proposed work.
 
+**Research backend update — September 12, 2026:** step 3 (research for the
+doctor) now has an implemented, approval-gated backend at `/api/research`; see
+the [research agent contract](dev-docs/research-agent.md) and the status entry
+above. Frontend integration, reports, and translation remain proposed work.
+
 ### Purpose
 
 Help doctors and patients get more value from a consultation without giving up
@@ -900,11 +929,6 @@ patient understand the discussion and next steps in their preferred language.
 4. **Two report views:** prepare a professional report for the doctor and a
    plain-language explanation for the patient from the same reviewed facts.
    Patient content explains terminology, what was discussed, agreed next steps,
-**Research backend update — September 12, 2026:** step 3 (research for the
-doctor) now has an implemented, approval-gated backend at `/api/research`; see
-the [research agent contract](dev-docs/research-agent.md) and the status entry
-above. Frontend integration, reports, and translation remain proposed work.
-
    and questions to bring to follow-up. It must not invent a diagnosis or change
    the clinician's instructions.
 5. **Cross-language understanding:** preserve the source-language text alongside

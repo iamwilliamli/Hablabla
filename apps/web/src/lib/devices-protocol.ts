@@ -32,6 +32,9 @@ export const deviceStateSchema = z.strictObject({
 });
 export type DeviceState = z.infer<typeof deviceStateSchema>;
 export const browserDeviceCommand = z.discriminatedUnion("operation", [
+  z.strictObject({ operation: z.literal("ai_status") }),
+  z.strictObject({ operation: z.literal("ai_cancel") }),
+  z.strictObject({ operation: z.literal("ai_plan"), planId: z.uuid(), deviceId: z.uuid(), catalogId: z.uuid(), windowId: z.uuid(), instruction: z.string().trim().min(1).max(2000) }),
   z.strictObject({ operation: z.literal("pairing") }),
   z.strictObject({ operation: z.literal("snapshot"), requestId: z.uuid(), deviceId: z.uuid() }),
   z.strictObject({ operation: z.literal("list_windows"), requestId: z.uuid(), deviceId: z.uuid() }),

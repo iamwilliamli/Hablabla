@@ -2,13 +2,16 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { browserDeviceCommand, nativeDeviceCommand, localDeviceOrigin,
   type DeviceState } from "../devices-protocol";
+import { type ComputerProposal } from "../computer-use";
+import { ComputerPlanningError, type ComputerPlanner } from "./openai-computer";
 
 const cookieName = "hablabla-local-device-session";
 const maxBody = 2_810_000;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 type Snapshot = NonNullable<DeviceState["request"]> & { bytes?: Uint8Array; digest?: string };
+type Planning = { id: string; digest: string; expires: number; controller: AbortController; proposal?: ComputerProposal };
 type Session = { expires: number; seen: number; challenge?: { digest: string; expires: number };
-  device?: NonNullable<DeviceState["device"]> & { tokenHash: string }; request?: Snapshot; catalog?: NonNullable<DeviceState["catalog"]>; used: Map<string, string> };
+  device?: NonNullable<DeviceState["device"]> & { tokenHash: string }; request?: Snapshot; catalog?: NonNullable<DeviceState["catalog"]>; used: Map<string, string>; planning?: Planning };
 class LocalError extends Error { constructor(readonly status: number, message: string) { super(message); } }
 
 /** In-memory, single-process, loopback-only broker. Restart deliberately revokes
@@ -16,15 +19,17 @@ class LocalError extends Error { constructor(readonly status: number, message: s
 export class LocalDevices {
   private sessions = new Map<string, Session>();
   private attempts = { since: 0, count: 0 };
-  constructor(private now: () => number = Date.now) {}
+  private aiBudget = { since: 0, count: 0 };
+  constructor(private now: () => number = Date.now, private planner?: ComputerPlanner) {}
 
   sweep() {
     const now = this.now();
     for (const [key, session] of this.sessions) {
-      if (now >= session.expires) { this.sessions.delete(key); continue; }
+      if (now >= session.expires) { this.cancelPlanning(session); this.sessions.delete(key); continue; }
       if (session.challenge && now >= session.challenge.expires) session.challenge = undefined;
       const offline = !session.device || now - Date.parse(session.device.lastSeen) > 10_000 || now - session.seen > 15_000;
       if (session.catalog && (offline || !session.device?.permissions.accessibility || now >= Date.parse(session.catalog.expiresAt))) session.catalog = undefined;
+      if (session.planning && (offline || !session.catalog || now >= session.planning.expires)) this.cancelPlanning(session);
       const request = session.request;
       if (!request) continue;
       if (request.status === "awaiting_approval" && (offline || now >= Date.parse(request.expiresAt))) {
@@ -165,8 +170,48 @@ export class LocalDevices {
         return reply(this.state(session));
       }
       if (url.search) throw new LocalError(400, "Unknown request.");
-      const input = browserDeviceCommand.parse(await readBody(request, 2048));
+      const input = browserDeviceCommand.parse(await readBody(request, 12_000));
       switch (input.operation) {
+        case "ai_status": return reply(this.planner?.status() ?? { configured: false, model: "gpt-6-astra" });
+        case "ai_cancel": this.cancelPlanning(session); return reply({ cancelled: true });
+        case "ai_plan": {
+          if (!this.planner?.status().configured) throw new LocalError(503, "Set OPENAI_API_KEY on the server and restart the web app.");
+          if (!session.device || session.device.id !== input.deviceId) throw new LocalError(404, "Mac is not paired to this browser.");
+          const target = session.catalog?.windows.find(w => w.id === input.windowId);
+          if (!target || session.catalog?.id !== input.catalogId || !this.state(session).device?.online || !session.device.permissions.accessibility)
+            throw new LocalError(409, "Share a fresh window list from the online companion first.");
+          if (session.request && ["awaiting_approval", "executing"].includes(session.request.status)) throw new LocalError(409, "Finish or cancel the current request first.");
+          const digest = hash(JSON.stringify(input));
+          if (session.used.has(input.planId)) {
+            if (session.used.get(input.planId) === digest && session.planning?.id === input.planId && session.planning.proposal) return reply(session.planning.proposal);
+            throw new LocalError(409, "This OpenAI request is already used or still running. It will not be sent twice.");
+          }
+          if (session.planning && !session.planning.proposal) throw new LocalError(409, "An OpenAI request is already running.");
+          if (session.used.size >= 500) throw new LocalError(429, "This browser session reached its request limit.");
+          if (this.now() - this.aiBudget.since >= 3_600_000) this.aiBudget = { since: this.now(), count: 0 };
+          if (this.aiBudget.count >= 30) throw new LocalError(429, "The local OpenAI limit is 30 requests per hour. Try again later.");
+          this.aiBudget.count++;
+          this.cancelPlanning(session);
+          const job: Planning = { id: input.planId, digest, expires: Math.min(this.now() + 90_000, Date.parse(session.catalog.expiresAt)), controller: new AbortController() };
+          session.used.set(input.planId, digest); session.planning = job;
+          const timeout = setTimeout(() => job.controller.abort(), 45_000);
+          const abort = () => job.controller.abort();
+          request.signal.addEventListener("abort", abort, { once: true });
+          try {
+            if (request.signal.aborted) job.controller.abort();
+            // Only the chosen title/app and user's instruction leave the Mac.
+            // Never send session/device credentials, catalog IDs or image bytes.
+            const result = await this.planner.plan({ instruction: input.instruction, window: { app: target.app, title: target.title, minimized: target.minimized } }, job.controller.signal);
+            this.sweep();
+            if (job.controller.signal.aborted || session.planning !== job || session.catalog?.id !== input.catalogId)
+              throw new LocalError(409, "This OpenAI proposal was cancelled or its window selection expired.");
+            job.proposal = { ...result, planId: input.planId, deviceId: input.deviceId, catalogId: input.catalogId, windowId: input.windowId, expiresAt: new Date(job.expires).toISOString() };
+            return reply(job.proposal);
+          } catch (error) {
+            if (session.planning === job) this.cancelPlanning(session);
+            throw error;
+          } finally { clearTimeout(timeout); request.signal.removeEventListener("abort", abort); }
+        }
         case "pairing": {
           if (session.device) throw new LocalError(409, "Disconnect this Mac before pairing again.");
           const code = randomBytes(16).toString("hex");
@@ -188,6 +233,7 @@ export class LocalDevices {
           if (input.operation !== "snapshot" && !session.device.permissions.accessibility) throw new LocalError(409, "Enable Accessibility in the companion first.");
           if (input.operation === "control" && (!session.catalog || session.catalog.id !== input.catalogId || !session.catalog.windows.some(w => w.id === input.windowId)))
             throw new LocalError(409, "Share a fresh window list from the companion first.");
+          this.cancelPlanning(session);
           if (input.operation === "list_windows") session.catalog = undefined;
           session.used.set(input.requestId, digest);
           session.request = { id: input.requestId, kind: input.operation,
@@ -195,6 +241,7 @@ export class LocalDevices {
           break;
         }
         case "clear":
+          this.cancelPlanning(session);
           if (session.request) {
             const pending = session.request;
             // Cancellation can arrive after execution finished, or be retried.
@@ -209,16 +256,21 @@ export class LocalDevices {
       return reply(this.state(session));
     } catch (error) {
       if (error instanceof LocalError) return reply({ error: error.message }, error.status);
+      if (error instanceof ComputerPlanningError) return reply({ error: error.message }, 502);
       if (error instanceof z.ZodError || error instanceof SyntaxError) return reply({ error: "Invalid local device request." }, 400);
       return reply({ error: "Local connection failed. Reconnect the companion." }, 500);
     }
   }
 
   private disconnect(session: Session) {
+    this.cancelPlanning(session);
     if (session.request?.status === "executing") { session.request.status = "unknown"; session.request.action = undefined; }
     else session.request = undefined;
     session.device = undefined; session.catalog = undefined; session.challenge = undefined;
     // Keep admitted IDs for the whole browser session, including across re-pair.
+  }
+  private cancelPlanning(session: Session) {
+    session.planning?.controller.abort(); session.planning = undefined;
   }
   private byToken(authorization: string) {
     if (!/^Bearer [a-f0-9]{64}$/.test(authorization)) throw new LocalError(401, "Pair the companion again.");
