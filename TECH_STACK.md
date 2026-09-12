@@ -462,12 +462,13 @@ Approved task fields only → local macOS backend → Ambiguous AI
 Local inference requires no model API key. Persistent tasks use:
 
 ```dotenv
-LOCAL_SPEECH_BASE_URL=http://127.0.0.1:8765
 AMBIGUOUS_API_KEY=replace-with-workspace-key
 WEB_APPROVAL_DIR=.data/web-approvals
 ```
 
-Do not commit `.env`. The root `.env.example` now contains placeholder configuration only.
+Do not commit `.env`. The root `.env.example` contains placeholder configuration only.
+`LOCAL_SPEECH_BASE_URL=http://127.0.0.1:8765` is a proposed future setting for
+the speech bridge; no current code consumes it.
 
 ## 13. Current meeting-workspace code locations
 
@@ -479,10 +480,10 @@ Do not commit `.env`. The root `.env.example` now contains placeholder configura
 | Self-managed AG-UI agent | `apps/web/src/lib/local-ai/webgpu-agent.ts` |
 | Meeting prompt builder | `apps/web/src/lib/local-ai/meeting-prompt.ts` |
 | Structured schemas | `apps/web/src/lib/local-ai/result-schema.ts` |
-| Local speech client | `apps/web/src/lib/local-speech/client.ts` |
-| Speech capabilities | `apps/web/src/lib/local-speech/capabilities.ts` |
-| Nemotron/Parakeet adapter | `apps/web/src/lib/local-speech/nemo-speech.ts` |
-| MOSS adapter | `apps/web/src/lib/local-speech/moss.ts` |
+| Local speech client — planned, not implemented | `apps/web/src/lib/local-speech/client.ts` |
+| Speech capabilities — planned, not implemented | `apps/web/src/lib/local-speech/capabilities.ts` |
+| Nemotron/Parakeet adapter — planned, not implemented | `apps/web/src/lib/local-speech/nemo-speech.ts` |
+| MOSS adapter — planned, not implemented | `apps/web/src/lib/local-speech/moss.ts` |
 | Agent registration | `apps/web/src/components/providers.tsx` |
 | Local backend API | `apps/web/src/app/api/` |
 | Meeting page context, chat, actions, and generated cards | `apps/web/src/app/page.tsx` |
@@ -499,7 +500,7 @@ Do not commit `.env`. The root `.env.example` now contains placeholder configura
 Give the WebLLM runtime one explicit owner. React rerenders must not reload the
 model or start concurrent generations.
 
-## 14. Required UI states
+## 14. Required UI states (speech states remain planned)
 
 - Checking WebGPU support.
 - Browser or GPU unsupported.
@@ -653,6 +654,27 @@ Proposed capabilities are `open_resource`, `list_windows`, `activate_window`, `c
 For multiple windows, the initial device viewer shows **one selected Mac display** with its visible desktop windows. Activating, moving, or interacting with windows requires the companion's relevant OS permissions and actions. Selecting multiple displays is a later feature. Separate floating browser panels for individual Mac apps require window-level capture and input routing; they do not arise automatically from a desktop stream. The viewer controls the Mac's existing session, so the Mac user can see the actions. Login/admin restrictions and OS prompts remain in force.
 
 A later WebRTC stream is a proposed media transport, with authenticated signaling through the relay and a separate scoped control channel. Until a transport is implemented and tested, use a still capture and label its timestamp; do not present stale frames as a live stream.
+
+### Next companion milestone: permissions and one capture
+
+This is the next implementation plan, not a report that the settings or code
+already exist. Package the Swift helper as a background `Hablabla Companion.app`
+with a consistent app identity, then add permission checks and setup controls.
+The current helper is a command-line executable supporting Keychain and
+`open_resource` only; it has no permission-status or screen-capture operation.
+
+The proposed setup separates screen viewing from control: request screen access
+for one user-selected display/window, then add Accessibility-backed window/input
+operations as a later capability. Permission status must come from the companion
+process, not from the dashboard or the development tool. Permissions enabled for
+Codex Computer Use do not establish permission for the shipped companion.
+
+Keep captures local for the first check; return a fresh timestamp, target ID,
+and dimensions with any later authorized dashboard result. Add explicit capture
+consent, denial/revocation states, and a stop control before enabling streaming
+or remote input. Do not advertise a capability until its OS adapter and tests
+exist. This work belongs under `apps/companion/`; William's speech worker and the
+meeting frontend remain separate components.
 
 ## 21. Proposed application protocol v1
 

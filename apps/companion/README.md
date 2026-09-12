@@ -85,6 +85,20 @@ The future `/devices` dashboard, `apps/relay/`, and `packages/device-protocol/` 
 
 Implemented capability: `open_resource`. Screen capture, streaming, remote keyboard/mouse, window control, voice input, menu-bar UI, and server-side AI planning remain future work. The WebGPU meeting model remains explicitly out of scope.
 
+## Next milestone: app permissions and screen capture
+
+Planned, not implemented: package the native helper as a background app, add
+permission status/setup controls, and verify one user-selected screen/window
+capture before adding remote input. The current CLI does not expose a permission
+setup command. Permissions enabled for Codex Computer Use are not a permission
+check for Hablabla Companion.
+
+Keep this computer-control adapter separate from William's native speech worker
+in the [team handbook](../../TEAM_ARCHITECTURE.md). Coordinate dashboard and
+backend integration through the existing companion protocol. Keep live meeting
+AI verification paused. See [TECH_STACK section 20](../../TECH_STACK.md#20-companion-prototype-and-access-scope)
+for the staged capture/control plan.
+
 ## Verification
 
 ```bash
