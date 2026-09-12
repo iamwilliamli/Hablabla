@@ -1,0 +1,296 @@
+# Sending audio to the Hablabla backend
+
+This file is the frontend/backend contract. The production base URL is supplied
+separately as `HABLABLA_SPEECH_URL`; all examples below are relative to it.
+The HTTP routes are also available as an importable
+[OpenAPI 3.1 file](speech-api.openapi.yaml). OpenAPI cannot fully describe the
+binary WebSocket frames, so this document remains authoritative for streaming.
+
+## Interface summary
+
+| Method | Path | Called by | Request data | Success |
+| --- | --- | --- | --- | --- |
+| `GET` | `/healthz` | Browser or server | none | `200 { "status": "ok" }` |
+| `GET` | `/v1/capabilities` | Partner server | bearer token | Supported models and audio limits |
+| `POST` | `/v1/parakeet/sessions` | Partner server | JSON stream configuration | `201` one-time WebSocket URL |
+| `WSS` | `/v1/parakeet/stream?ticket=...` | Browser | JSON commands plus framed PCM | Live transcript events |
+| `POST` | `/v1/moss/transcriptions` | Partner server | Multipart complete audio file | `202` queued job |
+| `GET` | `/v1/moss/transcriptions/:jobId` | Partner server | bearer token | Job progress/result |
+| `GET` | `/v1/moss/transcriptions/:jobId/events` | Partner server | bearer token | SSE progress/result stream |
+| `DELETE` | `/v1/moss/transcriptions/:jobId` | Partner server | bearer token | Cancelled/current job state |
+
+The backend accepts two intentionally different inputs:
+
+| Workflow | Input from the web app | Transport |
+| --- | --- | --- |
+| Live captions | Header-framed 16 kHz mono signed Int16 PCM | WebSocket |
+| Final offline transcript | The complete `File` or recorded `Blob` | Multipart HTTPS |
+
+Do not send a browser `MediaStream` object. It exists only inside that browser.
+
+## Authentication boundary
+
+Keep `HABLABLA_SPEECH_API_KEY` in the partner web app's server environment. Do
+not place it in client JavaScript, local storage, a `NEXT_PUBLIC_*` variable, or
+the WebSocket URL.
+
+All `/v1` HTTP requests use `Authorization: Bearer <partner-api-key>`. The
+browser must never receive that key. A frontend with no server component cannot
+call the protected HTTP API safely.
+
+The partner server creates a short-lived Parakeet session. Derive `origin` from
+the incoming browser request or a server-side setting; do not accept an
+arbitrary origin supplied by the browser:
+
+```ts
+// Example: a server route in the partner web app.
+export async function POST(request: Request) {
+  const { language = "en" } = await request.json();
+  const origin = new URL(request.headers.get("origin")!).origin;
+  const upstream = await fetch(`${process.env.HABLABLA_SPEECH_URL}/v1/parakeet/sessions`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${process.env.HABLABLA_SPEECH_API_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      origin,
+      language,
+      audio: { encoding: "pcm_s16le", sampleRateHz: 16000, channels: 1 },
+    }),
+  });
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: { "content-type": "application/json" },
+  });
+}
+```
+
+The configured origin must be an exact match, including scheme and port.
+
+The session request and response are:
+
+```http
+POST /v1/parakeet/sessions
+Authorization: Bearer <partner-api-key>
+Content-Type: application/json
+
+{
+  "origin": "https://partner.example.com",
+  "language": "en",
+  "audio": { "encoding": "pcm_s16le", "sampleRateHz": 16000, "channels": 1 }
+}
+```
+
+```json
+{
+  "sessionId": "st_...",
+  "websocketUrl": "wss://speech.example.com/v1/parakeet/stream?ticket=...",
+  "ticketExpiresAt": "2026-09-12T18:30:00.000Z"
+}
+```
+
+The ticket is single-use, expires after 60 seconds, and is bound to the exact
+browser `Origin` used to create it.
+
+## Parakeet live PCM
+
+Create Web Audio at 16 kHz and verify that the browser honored it. If it reports
+a different rate, use a real streaming resampler before sending; changing only
+the metadata would produce incorrect audio.
+
+```js
+const audioContext = new AudioContext({ sampleRate: 16000 });
+if (audioContext.sampleRate !== 16000) {
+  throw new Error(`A 16 kHz resampler is required; browser opened ${audioContext.sampleRate} Hz`);
+}
+
+const media = await navigator.mediaDevices.getUserMedia({
+  audio: {
+    channelCount: 1,
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  },
+});
+```
+
+Load the supplied worklet:
+
+```js
+await audioContext.audioWorklet.addModule("/hablabla-pcm16-worklet.js");
+const source = audioContext.createMediaStreamSource(media);
+const worklet = new AudioWorkletNode(audioContext, "hablabla-pcm16");
+source.connect(worklet);
+// Do not connect the microphone node to audioContext.destination.
+```
+
+Ask the partner server for a ticket, then connect directly to Hablabla:
+
+```js
+const sessionResponse = await fetch("/api/hablabla/parakeet-session", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ origin: location.origin, language: "en" }),
+});
+if (!sessionResponse.ok) throw new Error(await sessionResponse.text());
+const { websocketUrl } = await sessionResponse.json();
+
+const socket = new WebSocket(websocketUrl);
+socket.binaryType = "arraybuffer";
+
+let sequence = 0;
+socket.addEventListener("open", () => {
+  socket.send(JSON.stringify({ type: "start" }));
+});
+
+worklet.port.onmessage = ({ data: pcm }) => {
+  if (socket.readyState !== WebSocket.OPEN) return;
+  const samples = new Int16Array(pcm);
+  const packet = new ArrayBuffer(8 + samples.byteLength);
+  const view = new DataView(packet);
+  view.setUint32(0, sequence++, true);
+  view.setUint32(4, samples.length, true);
+  new Uint8Array(packet, 8).set(new Uint8Array(samples.buffer));
+  socket.send(packet);
+};
+
+socket.addEventListener("message", ({ data }) => {
+  const event = JSON.parse(data);
+  if (event.type === "transcript") {
+    // Replace the previous state. volatileText is allowed to change.
+    renderTranscript(event.confirmedText, event.volatileText, event.isFinal);
+  }
+});
+```
+
+WebSocket server events are JSON text frames:
+
+```json
+{ "type": "connected", "sessionId": "st_...", "audio": { "encoding": "pcm_s16le", "sampleRateHz": 16000, "channels": 1 } }
+{ "type": "progress", "progress": 0.01, "stage": "loading-model" }
+{ "type": "ready", "model": "parakeet-tdt-0.6b-v3", "sampleRateHz": 16000 }
+{ "type": "transcript", "revision": 3, "confirmedText": "Hello ", "volatileText": "world", "audioEndMs": 1840, "isFinal": false }
+{ "type": "transcript", "revision": 4, "confirmedText": "Hello world.", "volatileText": "", "audioEndMs": 2100, "isFinal": true }
+```
+
+Treat every transcript event as a replacement snapshot, not text to append.
+Ignore a revision older than the latest revision already rendered.
+
+Each binary packet is:
+
+```text
+bytes 0...3   UInt32 LE sequence, starting at 0
+bytes 4...7   UInt32 LE number of Int16 samples
+bytes 8...N   signed Int16 little-endian mono PCM
+```
+
+The included worklet emits 1,600 samples per packet, or 100 ms. When recording
+ends, stop all media tracks, disconnect the nodes, and flush the model:
+
+```js
+socket.send(JSON.stringify({ type: "finish" }));
+media.getTracks().forEach((track) => track.stop());
+source.disconnect();
+worklet.disconnect();
+```
+
+Wait for `isFinal: true`; a WebSocket close by itself is not a final transcript.
+
+## MOSS complete-file upload
+
+The browser sends the recording to its own server. That server forwards it with
+the private partner key:
+
+```ts
+const incoming = await request.formData();
+const audio = incoming.get("audio");
+if (!(audio instanceof File)) return new Response("audio is required", { status: 400 });
+
+const upstream = new FormData();
+upstream.set("audio", audio, audio.name || "recording.webm");
+upstream.set("language", "auto");
+upstream.set("hotwords", JSON.stringify(["Hablabla", "CopilotKit"]));
+upstream.set("clientReference", crypto.randomUUID());
+
+const response = await fetch(`${process.env.HABLABLA_SPEECH_URL}/v1/moss/transcriptions`, {
+  method: "POST",
+  headers: {
+    authorization: `Bearer ${process.env.HABLABLA_SPEECH_API_KEY}`,
+    "idempotency-key": crypto.randomUUID(),
+  },
+  body: upstream,
+});
+```
+
+The multipart fields are:
+
+| Field | Required | Type | Meaning |
+| --- | --- | --- | --- |
+| `audio` | yes | file | Complete browser recording |
+| `language` | no | string | `auto` (default), `en`, `zh`, or another two-letter language code |
+| `hotwords` | no | JSON string | Array of at most 64 terms, each at most 80 characters |
+| `clientReference` | no | string | Frontend correlation ID, at most 200 characters |
+
+Do not manually set the multipart `Content-Type`; `fetch` must add its boundary.
+The gateway accepts WAV, M4A/AAC, MP3, MP4, WebM/Opus, and Ogg/Opus, then uses
+FFmpeg to validate, decode, downmix, and resample the file before MOSS sees it.
+
+Creation returns `202` with `jobId`, `statusUrl`, and `eventsUrl`. Poll the status
+URL from the partner server or proxy the SSE events. A completed result contains
+`text` and any timestamped `segments`; queued and processing states are not a
+transcription result.
+
+```json
+{
+  "jobId": "moss_...",
+  "status": "completed",
+  "progress": 1,
+  "clientReference": "meeting_123",
+  "result": {
+    "model": "vanch007/mlx-MOSS-Transcribe-Diarize-4bit",
+    "language": "en",
+    "durationMs": 8611,
+    "text": "Hello world.",
+    "segments": [
+      { "id": "segment_001", "startMs": 0, "endMs": 2100, "speakerId": "speaker_0", "text": "Hello world." }
+    ]
+  }
+}
+```
+
+Possible job states are `queued`, `processing`, `completed`, `failed`, and
+`cancelled`. SSE messages use the same object inside `data: <json>` and end
+after a terminal state.
+
+## Errors and retry behavior
+
+HTTP and WebSocket error messages share this shape:
+
+```json
+{
+  "error": {
+    "code": "INVALID_STREAM_CONFIG",
+    "message": "Streaming audio must be 16 kHz mono pcm_s16le.",
+    "retryable": false,
+    "requestId": "req_..."
+  }
+}
+```
+
+Frontend behavior should follow `retryable`, retain `requestId` for debugging,
+and show a user-visible failure instead of treating a closed socket or failed
+job as an empty transcript. Common HTTP statuses are `400` invalid input, `401`
+invalid API key, `403` disallowed origin, `404` unknown job, `413` file too
+large, and `415` unsupported audio type.
+
+## Operational limits
+
+- Use 20–100 ms Parakeet packets; the server rejects packets over one second.
+- Sequence numbers must be contiguous. WebSocket delivery is ordered, and a gap
+  is treated as corrupted capture rather than silently hiding missing speech.
+- The current upload default is 200 MiB.
+- Preserve the MIME type and filename from `MediaRecorder`; both help FFmpeg
+  identify the container.
+- Never retry an offline upload with a new idempotency key unless a second job is
+  actually intended.

@@ -11,11 +11,13 @@
   "workspaces": [
     "packages/*",
     "apps/channel",
+    "apps/speech-gateway",
     "apps/web"
   ],
   "scripts": {
     "dev": "npm run dev:web",
     "dev:slack": "npm run dev --workspace channel",
+    "dev:speech": "npm run dev --workspace speech-gateway",
     "channel:status": "npx copilotkit@latest channels status --json",
     "channel:setup": "npx copilotkit@latest channels setup",
     "typecheck": "npm run typecheck --workspaces --if-present",
