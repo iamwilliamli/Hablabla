@@ -16,9 +16,14 @@ Do not resume model downloads or GPU experiments from this handbook's schedule
 unless asked. Native speech/pyannote and persisted meeting/analysis management
 remain integration work. Existing meeting imports and chats are session-only.
 
-The separate computer companion workstream and reserved `apps/companion/` paths
-are documented in TECH_STACK sections 19–23. This handbook covers the local
-meeting workflow and does not replace that workstream's ownership boundaries.
+The separate computer companion now has an implemented Terminal prototype in
+`apps/companion/` (pairing, Keychain credentials, local approval, and registered
+document opening). See its [quickstart](apps/companion/README.md) and
+[implemented protocol](apps/companion/PROTOCOL.md), plus TECH_STACK sections
+19–23. Its loopback demo relay is a development fixture; the device dashboard,
+production relay, and screen-control capabilities remain future work. This
+handbook covers the local meeting workflow and does not replace that
+workstream's ownership boundaries.
 
 Audience: William, Renzo, Ahmad, and Arjun, including teammates new to the stack. This is the implementation handbook
 for the current Mac demo. Architecture diagrams and new API examples describe
