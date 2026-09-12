@@ -17,6 +17,18 @@ Do not resume model downloads or GPU experiments from this handbook's schedule
 unless asked. Native speech/pyannote and persisted meeting/analysis management
 remain integration work. Existing meeting imports and chats are session-only.
 
+### Merged speech/backend implementation — September 12, 2026
+
+Remote work through `85baf76` adds `apps/macos-model-worker/`,
+`apps/speech-gateway/`, and the opt-in server `/api/meeting-agent` prototype.
+Read the [speech gateway README](apps/speech-gateway/README.md) and
+[frontend contract](dev-docs/speech-api-frontend.md) before integration. These
+components are separate from the computer companion and remain unconnected to
+the meeting UI. This companion task did not run their native model downloads,
+inference, or live OpenAI calls. The architecture sections below still describe
+integration work; the new source and API contract take precedence for the
+implemented worker/gateway interface.
+
 ### Speaker identity module update — September 12, 2026
 
 `apps/speaker-identity/` now contains an isolated, local Python module for
@@ -351,11 +363,11 @@ remaining architecture and schedule as targets, not evidence of completion.
 | Meeting UI | Meeting workspace at `/`; incident reference at `/reference`; imports/edits live in memory | Integrate revisioned storage, audio/transcript segments, and speaker labeling |
 | CopilotKit | Home uses a self-managed `WebGPUAgent`; reference/voice use the server runtime | Preserve provider separation; coordinate any new routes |
 | Browser model | WebLLM 0.2.85, worker, streaming/schema wiring, and recovery states exist | Successful live generation is unverified; do not resume testing until asked |
-| Native speech | No Hablabla speech worker or `/api/local` routes yet | William builds the worker; Renzo integrates its local API |
+| Native speech | `apps/macos-model-worker/` and authenticated `apps/speech-gateway/` are now merged; no meeting UI integration or `/api/local` routes | William owns worker verification; backend/frontend owners integrate the documented gateway contract |
 | Existing speech code | Handbook identifies a separate LiveTranscriber project | Confirm reuse/provenance and macOS compatibility before claiming integration |
 | Approval | Meeting `MTG-...` IDs use the existing immutable proposal, approval, denial, and read-back gate | Live Ambiguous write verification and coordinated future domain migration |
 | Companion | `apps/companion/` pairs, stores credentials in Keychain, and opens registered files after Terminal approval; its native app bundle has a fixed ID/install path and a setup window with actual GUI-process permission checks and explicit request controls, plus local single-window/display capture | Streaming/control, device dashboard, production relay, and verification of signing/permission persistence |
-| Checks | 113 repository tests/typechecks and three app-bundle tests passed again for native capture; real local window/display snapshots, clear, and picker cancellation verified on macOS 26; prior web build passed during companion verification | Run checks for subsequent changes; fake inference/provider tests do not verify live models or writes |
+| Checks | 120 repository tests/typechecks passed after the backend merge, plus three app-bundle tests for native capture; real local window/display snapshots, clear, and picker cancellation verified on macOS 26; prior web build passed during companion verification | Run checks for subsequent changes; fake inference/provider tests do not verify live models or writes |
 
 The current starter's chat and voice paths include remote model integrations.
 Installing dependencies or launching the starter does not make inference local.

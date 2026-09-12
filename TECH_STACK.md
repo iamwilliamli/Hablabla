@@ -85,6 +85,17 @@ The user explicitly assigned companion implementation after the initial handoff.
 - Streaming, keyboard/mouse control, window management, full menu-bar connection/approval controls, voice, server-side AI, public relay authentication/deployment, and `/devices` are still unimplemented. Local meeting-AI verification remains paused.
 
 
+### Speech/backend merge accompanying local capture
+
+The companion change integrates remote work through `85baf76`, including the
+native model worker, authenticated speech gateway, and opt-in meeting-agent
+backend prototype. See [the speech API contract](dev-docs/speech-api-frontend.md).
+This does not connect screenshots to those services or resume local meeting-AI
+verification. Native speech inference and live OpenAI calls were not exercised
+by the companion checks. After the merge, a clean dependency install and
+`npm run verify` passed every workspace typecheck and all **120 tests**. The
+final capture build also passed three native bundle tests.
+
 ### Ownership correction and OpenAI backend status — September 12, 2026
 
 William does not own the frontend. Do not modify frontend code for his tasks unless he explicitly changes this boundary. Frontend changes for the Local / OpenAI switch were withdrawn; the meeting UI remains local-only. The unconnected server-side `/api/meeting-agent` prototype and tests are retained for backend work. Direct calls to this endpoint use OpenAI when a server API key is configured; the local-only descriptions below describe the existing meeting UI, not this optional endpoint. Live OpenAI requests remain unverified. Future frontend integration belongs to its frontend owners and requires explicit disclosure before sending meeting data.

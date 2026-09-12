@@ -304,3 +304,10 @@ Capture verification on September 12, 2026:
   macOS 14–15 compatibility path is compiled but not verified on those OS versions.
   Closed-source, forced timeout, and in-flight cancellation races have not been
   live-tested. Do not claim streaming, remote input, or dashboard image delivery.
+
+After merging upstream `85baf76`, a clean dependency install and `npm run verify`
+passed all workspace typechecks and **120 tests** (including the new speech
+gateway and optional OpenAI backend tests). These are offline checks, not live
+speech inference or OpenAI verification. The three native bundle checks also
+passed on the final capture build; documentation/merge changes did not rebuild
+the installed app or change its refreshed Screen Recording grant.
