@@ -28,6 +28,31 @@ The backend accepts two intentionally different inputs:
 
 Do not send a browser `MediaStream` object. It exists only inside that browser.
 
+## Frontend integration handoff
+
+The speech gateway contract is ready, but `apps/web` does not currently expose
+the same-origin proxy routes needed to keep the partner bearer key out of the
+browser. Agree their final paths with the web-backend owner before wiring UI.
+Names such as `/api/hablabla/parakeet-session` below are examples, not existing
+routes.
+
+| Owner | Required integration work |
+| --- | --- |
+| Web backend | Read `HABLABLA_SPEECH_URL` and `HABLABLA_SPEECH_API_KEY` only on the server; derive the trusted browser origin; proxy session creation and MOSS create/read/cancel; proxy SSE or expose authenticated polling. |
+| Capture/transcript frontend | Use the supplied PCM worklet, start capture only after `ready`, replace transcript state by increasing `revision`, flush before `finish`, and wait for `isFinal: true`. Preserve the recorded file's MIME type and filename for MOSS. |
+| Analysis frontend | Consume confirmed transcript snapshots and timestamped segments. Treat `speakerId` as a generic label unless the user explicitly names that speaker; do not infer identity. |
+
+Acceptance requires all of the following:
+
+1. Browser source, storage, logs, and requests never expose the long-lived API key.
+2. One real Parakeet stream reaches `ready`, displays a revisable transcript,
+   and ends with `isFinal: true`.
+3. One real MOSS upload renders queued/processing/completed and uses its returned
+   `jobId`; cancellation and a failed job are visible states, not empty text.
+4. A repeated upload after a transport retry reuses the same idempotency key.
+5. UI retains the backend `requestId` for diagnosis and ignores stale transcript
+   revisions.
+
 ## Authentication boundary
 
 Keep `HABLABLA_SPEECH_API_KEY` in the partner web app's server environment. Do
@@ -132,7 +157,8 @@ Ask the partner server for a ticket, then connect directly to Hablabla:
 const sessionResponse = await fetch("/api/hablabla/parakeet-session", {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({ origin: location.origin, language: "en" }),
+  // The same-origin server route derives Origin from the request context.
+  body: JSON.stringify({ language: "en" }),
 });
 if (!sessionResponse.ok) throw new Error(await sessionResponse.text());
 const { websocketUrl } = await sessionResponse.json();
